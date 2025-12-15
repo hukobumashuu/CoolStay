@@ -1,36 +1,116 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CoolStay Design System
 
-## Getting Started
+## Overview
 
-First, run the development server:
+The **CoolStay Design System** defines the visual language, UI rules, and component standards for the CoolStay web application.  
+Its purpose is to ensure **consistency, scalability, accessibility, and backend readiness** across all frontend development.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+This design system is intended to be used in a **Next.js + TypeScript + Tailwind CSS + shadcn/ui** environment and is designed to integrate seamlessly with a future **Supabase backend**.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+This is not a static UI kit. It is a **living system** that guides how components are built, styled, and connected to data.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Design Philosophy
 
-## Learn More
+- **Clarity over cleverness**
+- **Server components first**
+- **Client components only when interaction is required**
+- **No over-engineering**
+- **Backend-ready by default**
+- **Composable, not monolithic**
 
-To learn more about Next.js, take a look at the following resources:
+If something can be solved with Tailwind utilities or an existing shadcn component, do not reinvent it.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Color System
 
-## Deploy on Vercel
+The primary brand identity uses **shades of blue**, inspired by water, relaxation, and trust.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Primary Palette
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Token      | Hex       | Usage                            |
+| ---------- | --------- | -------------------------------- |
+| `blue-900` | `#03045E` | Primary brand, navbar background |
+| `blue-800` | `#0077B6` | Primary buttons, active states   |
+| `blue-600` | `#00B4D8` | Highlights, links, accents       |
+| `blue-300` | `#90E0EF` | Secondary backgrounds            |
+| `blue-100` | `#CAF0F8` | Subtle backgrounds, cards        |
+
+### Usage Rules
+
+- **Dark blue (`#03045E`)** is reserved for strong brand anchors (navbar, footer).
+- **Mid blues (`#0077B6`, `#00B4D8`)** are used for CTAs and interactive elements.
+- **Light blues (`#90E0EF`, `#CAF0F8`)** are used for backgrounds and non-intrusive UI surfaces.
+- Avoid introducing new colors unless explicitly approved.
+
+---
+
+## Typography
+
+- Use the default **Next.js + Tailwind font stack** unless otherwise specified.
+- Headings should be visually bold but not decorative.
+- Text must always meet **WCAG contrast standards** against backgrounds.
+
+---
+
+## Component Standards
+
+### Component Categories
+
+- **Layout Components**
+
+  - Navbar
+  - Footer
+  - Section wrappers
+
+- **UI Components**
+
+  - Buttons
+  - Cards
+  - Calendar
+  - Modals
+  - Popovers
+
+- **Feature Components**
+  - Availability Calendar
+  - Hero Section
+  - CTA Blocks
+
+---
+
+### shadcn/ui Usage
+
+- Use shadcn components as the **base layer**
+- Extend styling via Tailwind utilities
+- Do not fork or duplicate shadcn components unless necessary
+
+Allowed components include:
+
+- `Button`
+- `Card`
+- `Popover`
+- `Dialog`
+- `Calendar`
+
+---
+
+## Component Rules
+
+- Components must be:
+  - Typed with TypeScript
+  - Reusable
+  - Stateless when possible
+- No inline mock data inside components
+- All data must be passed via props or fetched via the API layer
+
+---
+
+## Backend-Ready Data Design
+
+Even when using mock data, the frontend must behave as if a real backend exists.
+
+### Data Access Rule
+
+All data must go through an API abstraction:
