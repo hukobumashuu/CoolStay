@@ -64,7 +64,7 @@ export default function SecurityPage() {
   const securityScore = data.profile.is_two_factor_enabled ? 100 : 50;
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-[#cde4fa] p-8 -m-6 font-sans">
+    <div className="min-h-[calc(100vh-4rem)] bg-[#F5F8FA] p-8 -m-6 font-sans">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
         <div>
           <h1 className="text-4xl font-serif font-bold text-black">
