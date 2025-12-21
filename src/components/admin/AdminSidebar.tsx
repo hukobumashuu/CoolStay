@@ -1,66 +1,95 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import Image from "next/image";
+import { usePathname } from "next/navigation";
+import {
+  CalendarCheck,
+  BedDouble,
+  UserCog,
+  IdCard,
+  FileText,
+  MessageSquare,
+  BarChart3,
+  Megaphone,
+  ShieldCheck,
+} from "lucide-react";
 
 const menuItems = [
-  { name: "Manage Bookings", href: "/admin/dashboard", icon: "📅" },
-  { name: "Room Availability", href: "/admin/rooms", icon: "🏨" },
-  { name: "Customer Management", href: "/admin/customers", icon: "👥" },
-  { name: "Staff Management", href: "/admin/staff", icon: "👔" },
-  { name: "Billing & Invoices", href: "/admin/billing", icon: "💳" },
-  { name: "Guest Feedback", href: "/admin/feedback", icon: "⭐" },
-  { name: "Reports & Analytics", href: "/admin/reports", icon: "📊" },
-  { name: "Security & Verification", href: "/admin/security", icon: "🛡️" },
+  { name: "Manage Bookings", href: "/admin/dashboard", icon: CalendarCheck },
+  { name: "Room Availability", href: "/admin/rooms", icon: BedDouble },
+  { name: "Customer Management", href: "/admin/customers", icon: UserCog },
+  { name: "Staff Management", href: "/admin/staff", icon: IdCard },
+  { name: "Billing & Invoices", href: "/admin/billing", icon: FileText },
+  {
+    name: "Guest Engagement & Feedback",
+    href: "/admin/feedback",
+    icon: MessageSquare,
+  },
+  { name: "Reports & Analytics", href: "/admin/reports", icon: BarChart3 },
+  {
+    name: "Discounts & Promotions",
+    href: "/admin/promotions",
+    icon: Megaphone,
+  },
+  {
+    name: "Security & Verification",
+    href: "/admin/security",
+    icon: ShieldCheck,
+  },
 ];
 
 export default function AdminSidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="fixed top-0 left-0 h-full w-64 bg-[#E8F4F8] border-r border-blue-100 z-40 hidden lg:flex flex-col">
-      {/* Brand Header */}
-      <div className="h-20 flex items-center gap-3 px-6 border-b border-blue-100 bg-white/50">
-        <div className="relative h-10 w-10 rounded-full overflow-hidden border-2 border-[#0A1A44]">
+    <aside className="fixed top-0 left-0 h-full w-64 bg-[#9ecbf7] z-40 hidden lg:flex flex-col font-sans">
+      {/* Brand Header - Dark Blue to match Navbar, NO border-r to fix the line glitch */}
+      <div className="h-16 flex items-center justify-center gap-3 bg-[#0A1A44] shadow-md z-50 shrink-0">
+        {/* Logo Image */}
+        <div className="relative h-8 w-8 rounded-full overflow-hidden border-2 border-white/20">
           <Image
             src="/images/logo/coolstaylogo.jpg"
-            alt="Logo"
+            alt="CoolStay Logo"
             fill
             className="object-cover"
           />
         </div>
-        <span className="text-xl font-serif font-bold text-[#0A1A44]">
+        <h1 className="text-xl font-serif font-bold text-white tracking-wide">
           CoolStay
-        </span>
+        </h1>
       </div>
 
-      {/* Navigation Menu */}
-      <nav className="flex-1 overflow-y-auto py-6 px-3 space-y-1">
+      {/* Navigation Menu - Border added here instead of on the parent */}
+      <nav className="flex-1 overflow-y-auto py-6 px-4 space-y-2 custom-scrollbar border-r border-blue-300/50">
+        <div className="px-2 mb-4">
+          <h2 className="text-xl font-serif font-bold text-slate-900">
+            Dashboard
+          </h2>
+        </div>
+
         {menuItems.map((item) => {
           const isActive = pathname === item.href;
           return (
             <Link
               key={item.name}
               href={item.href}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+              className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 ${
                 isActive
-                  ? "bg-[#0A1A44] text-white shadow-md"
-                  : "text-gray-600 hover:bg-blue-100 hover:text-[#0A1A44]"
+                  ? "bg-[#3b82f6]/40 border-2 border-[#2563eb] text-black shadow-sm"
+                  : "text-slate-900 hover:bg-blue-300/50 border-2 border-transparent"
               }`}
             >
-              <span className="text-lg">{item.icon}</span>
-              {item.name}
+              <item.icon
+                className={`w-5 h-5 ${
+                  isActive ? "text-black" : "text-slate-800"
+                }`}
+              />
+              <span className="leading-none">{item.name}</span>
             </Link>
           );
         })}
       </nav>
-
-      {/* Footer Info */}
-      <div className="p-6 border-t border-blue-100 text-xs text-gray-400 text-center">
-        <p>&copy; 2025 CoolStay Admin</p>
-        <p>v1.0.0</p>
-      </div>
     </aside>
   );
 }
