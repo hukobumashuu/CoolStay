@@ -1,15 +1,24 @@
 import Image from "next/image";
 import { Button } from "@/components/ui/Button";
 
+// Define the exact shape of the data needed for booking
+export interface BookingData {
+  id: string;
+  name: string;
+  base_price: number;
+}
+
 interface RoomProps {
+  id: string;
   title: string;
   description: string;
   imageSrc: string;
   size: string;
   features: string[];
+  price: number;
+  onBook: (room: BookingData) => void; // <--- Fixed: No more 'any'
 }
 
-// FIX 1: Defined outside the main component to prevent re-creation on render
 const Stars = ({ count = 5 }: { count?: number }) => (
   <div className="flex gap-1 text-yellow-400">
     {[...Array(count)].map((_, i) => (
@@ -21,11 +30,14 @@ const Stars = ({ count = 5 }: { count?: number }) => (
 );
 
 export default function RoomCard({
+  id,
   title,
   description,
   imageSrc,
   size,
   features,
+  price,
+  onBook,
 }: RoomProps) {
   return (
     <div className="bg-[#A2D5F2]/20 border border-blue-200 rounded-3xl p-6 flex flex-col md:flex-row gap-6 shadow-sm hover:shadow-md transition-shadow">
@@ -40,14 +52,16 @@ export default function RoomCard({
           <h3 className="text-2xl font-bold text-[#0A1A44] font-serif">
             {title}
           </h3>
+          <span className="bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full">
+            ₱{price.toLocaleString()} / night
+          </span>
         </div>
 
-        <p className="text-gray-600 text-sm leading-relaxed mb-6">
+        <p className="text-gray-600 text-sm leading-relaxed mb-6 line-clamp-2">
           {description}
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-y-4 gap-x-8 mb-6">
-          {/* Ratings Column */}
           <div className="space-y-3">
             <div>
               <p className="text-xs font-semibold text-gray-700 mb-1">
@@ -65,10 +79,9 @@ export default function RoomCard({
             </div>
           </div>
 
-          {/* Comfort Column */}
           <div>
             <p className="text-xs font-semibold text-gray-700 mb-1">
-              Room Comfort and Quality
+              Room Comfort
             </p>
             <Stars />
           </div>
@@ -76,8 +89,6 @@ export default function RoomCard({
 
         <div className="mt-auto">
           <h4 className="text-sm font-bold text-[#0A1A44] mb-2">Features:</h4>
-
-          {/* FIX 2: Using the features prop dynamically */}
           <div className="grid grid-cols-2 gap-y-1 text-sm text-gray-700 mb-6">
             <p>Room size: {size}</p>
             {features.map((feature, index) => (
@@ -86,7 +97,10 @@ export default function RoomCard({
           </div>
 
           <div className="flex justify-end">
-            <Button className="bg-[#0A1A44] hover:bg-[#0A1A44]/90 text-white px-8 py-2 rounded-lg text-sm font-bold shadow-lg">
+            <Button
+              onClick={() => onBook({ id, name: title, base_price: price })}
+              className="bg-[#0A1A44] hover:bg-[#0A1A44]/90 text-white px-8 py-2 rounded-lg text-sm font-bold shadow-lg"
+            >
               BOOK NOW
             </Button>
           </div>
