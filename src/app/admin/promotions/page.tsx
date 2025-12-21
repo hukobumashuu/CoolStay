@@ -1,265 +1,320 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Ticket,
-  Percent,
   Calendar,
   Plus,
   Copy,
   MoreVertical,
-  Tag,
-  ShoppingBag,
-  Timer,
+  X,
+  Loader2,
 } from "lucide-react";
 
-// --- Types ---
+// Matches your DB Schema
 type Promotion = {
   id: string;
   code: string;
   name: string;
-  discountValue: string; // e.g., "20%" or "₱500"
-  type: "Percentage" | "Fixed";
-  validUntil: string;
-  usageCount: number;
-  status: "Active" | "Scheduled" | "Expired";
-  color: string;
+  discount_value: number;
+  discount_type: "percentage" | "fixed";
+  valid_until: string | null;
+  status: "active" | "expired" | "scheduled" | "disabled";
+  usage_count: number;
 };
 
-// --- Mock Data ---
-const activePromos: Promotion[] = [
-  {
-    id: "P-001",
-    code: "SUMMER2025",
-    name: "Summer Splash Sale",
-    discountValue: "20%",
-    type: "Percentage",
-    validUntil: "May 30, 2025",
-    usageCount: 45,
-    status: "Active",
-    color: "bg-blue-500",
-  },
-  {
-    id: "P-002",
-    code: "WELCOME500",
-    name: "New Guest Welcome",
-    discountValue: "₱ 500",
-    type: "Fixed",
-    validUntil: "Dec 31, 2025",
-    usageCount: 12,
-    status: "Active",
-    color: "bg-[#0A1A44]",
-  },
-  {
-    id: "P-003",
-    code: "RAINYDAY",
-    name: "Monsoon Special",
-    discountValue: "15%",
-    type: "Percentage",
-    validUntil: "Nov 15, 2025",
-    usageCount: 0,
-    status: "Scheduled",
-    color: "bg-teal-600",
-  },
-];
-
-const expiredPromos: Promotion[] = [
-  {
-    id: "P-004",
-    code: "FLASH10",
-    name: "Flash Sale Oct",
-    discountValue: "10%",
-    type: "Percentage",
-    validUntil: "Oct 10, 2025",
-    usageCount: 150,
-    status: "Expired",
-    color: "bg-gray-400",
-  },
-];
-
-// --- Components ---
-
-// 1. The Ticket Card Component
-const PromoTicket = ({ promo }: { promo: Promotion }) => (
-  <div className="group relative flex bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 h-40 border border-blue-100">
-    {/* Left Side: Visual & Value */}
-    <div
-      className={`${promo.color} w-32 flex flex-col items-center justify-center text-white p-4 relative`}
-    >
-      {/* Decorative Circles for Perforation Effect */}
-      <div className="absolute -right-3 top-0 w-6 h-6 bg-[#cde4fa] rounded-full"></div>
-      <div className="absolute -right-3 bottom-0 w-6 h-6 bg-[#cde4fa] rounded-full"></div>
-
-      <span className="text-3xl font-serif font-bold">
-        {promo.discountValue}
-      </span>
-      <span className="text-xs uppercase tracking-widest opacity-80 mt-1">
-        OFF
-      </span>
-    </div>
-
-    {/* Dashed Divider */}
-    <div className="w-0 border-l-2 border-dashed border-gray-200 relative my-3"></div>
-
-    {/* Right Side: Details */}
-    <div className="flex-1 p-5 flex flex-col justify-between">
-      <div>
-        <div className="flex justify-between items-start">
-          <span
-            className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider
-                ${
-                  promo.status === "Active"
-                    ? "bg-green-100 text-green-700"
-                    : "bg-yellow-100 text-yellow-700"
-                }`}
-          >
-            {promo.status}
-          </span>
-          <button className="text-gray-400 hover:text-[#0A1A44]">
-            <MoreVertical className="w-4 h-4" />
-          </button>
-        </div>
-        <h3 className="font-bold text-[#0A1A44] text-lg mt-2">{promo.name}</h3>
-        <p className="text-xs text-slate-500 flex items-center gap-1 mt-1">
-          <Calendar className="w-3 h-3" /> Valid until: {promo.validUntil}
-        </p>
-      </div>
-
-      <div className="flex items-center justify-between bg-slate-50 rounded-lg p-2 border border-slate-100">
-        <div className="flex items-center gap-2">
-          <Ticket className="w-4 h-4 text-slate-400" />
-          <span className="font-mono font-bold text-slate-700 tracking-wider">
-            {promo.code}
-          </span>
-        </div>
-        <button
-          className="text-blue-500 hover:text-blue-700 transition-colors"
-          title="Copy Code"
-        >
-          <Copy className="w-4 h-4" />
-        </button>
-      </div>
-    </div>
-  </div>
-);
-
 export default function PromotionsPage() {
+  const [promos, setPromos] = useState<Promotion[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Form State
+  const [formData, setFormData] = useState<{
+    name: string;
+    code: string;
+    discount_type: "percentage" | "fixed";
+    discount_value: string;
+    valid_until: string;
+  }>({
+    name: "",
+    code: "",
+    discount_type: "percentage",
+    discount_value: "",
+    valid_until: "",
+  });
+
+  // Fetch Promos
+  const fetchPromos = async () => {
+    try {
+      const res = await fetch("/api/admin/promotions");
+      if (!res.ok) throw new Error("Failed");
+      const data = await res.json();
+      setPromos(data);
+    } catch (error) {
+      console.error("Error fetching promos:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPromos();
+  }, []);
+
+  // Handle Create
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      const res = await fetch("/api/admin/promotions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+      if (!res.ok) throw new Error("Failed to create");
+
+      await fetchPromos(); // Refresh list
+      setIsModalOpen(false); // Close modal
+      // Reset form
+      setFormData({
+        name: "",
+        code: "",
+        discount_type: "percentage",
+        discount_value: "",
+        valid_until: "",
+      });
+    } catch (error) {
+      console.error("Error creating promotion:", error);
+      alert("Error creating promotion. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-[#cde4fa] p-8 -m-6 font-sans">
-      {/* --- Header --- */}
+    <div className="min-h-[calc(100vh-4rem)] bg-[#cde4fa] p-8 -m-6 font-sans relative">
+      {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
         <div>
           <h1 className="text-4xl font-serif font-bold text-black">
             Promotions & Deals
           </h1>
           <p className="text-slate-600 font-medium mt-1">
-            Manage coupons, discounts, and special offers.
+            Manage coupons and special offers.
           </p>
         </div>
 
-        <button className="bg-[#0A1A44] hover:bg-[#1a3a75] text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg hover:shadow-xl transition-all transform hover:scale-105">
+        <button
+          onClick={() => setIsModalOpen(true)}
+          className="bg-[#0A1A44] hover:bg-[#1a3a75] text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-all transform hover:scale-105"
+        >
           <Plus className="w-5 h-5" />
           Create New Promo
         </button>
       </div>
 
-      {/* --- Quick Stats --- */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-        <div className="bg-white/60 backdrop-blur-sm p-6 rounded-3xl border border-white/50 flex items-center gap-4">
-          <div className="bg-blue-100 p-3 rounded-full text-blue-600">
-            <Tag className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="text-slate-500 text-xs font-bold uppercase">
-              Active Coupons
-            </p>
-            <p className="text-2xl font-bold text-[#0A1A44]">3 Active</p>
-          </div>
-        </div>
-        <div className="bg-white/60 backdrop-blur-sm p-6 rounded-3xl border border-white/50 flex items-center gap-4">
-          <div className="bg-green-100 p-3 rounded-full text-green-600">
-            <ShoppingBag className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="text-slate-500 text-xs font-bold uppercase">
-              Total Redemptions
-            </p>
-            <p className="text-2xl font-bold text-[#0A1A44]">57 Used</p>
-          </div>
-        </div>
-        <div className="bg-white/60 backdrop-blur-sm p-6 rounded-3xl border border-white/50 flex items-center gap-4">
-          <div className="bg-purple-100 p-3 rounded-full text-purple-600">
-            <Timer className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="text-slate-500 text-xs font-bold uppercase">
-              Expiring Soon
-            </p>
-            <p className="text-2xl font-bold text-[#0A1A44]">1 Promo</p>
-          </div>
-        </div>
-      </div>
-
-      {/* --- Active Promotions Grid --- */}
-      <h2 className="text-xl font-bold text-[#0A1A44] mb-6 flex items-center gap-2">
-        <Percent className="w-5 h-5" /> Active Campaigns
-      </h2>
-
+      {/* Promos Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-12">
-        {activePromos.map((promo) => (
-          <PromoTicket key={promo.id} promo={promo} />
-        ))}
+        {isLoading ? (
+          <div className="col-span-full text-center text-slate-500 animate-pulse">
+            Loading promotions...
+          </div>
+        ) : promos.length === 0 ? (
+          <div className="col-span-full text-center text-slate-500 py-10">
+            No active promotions found. Create one to get started!
+          </div>
+        ) : (
+          promos.map((promo) => (
+            <div
+              key={promo.id}
+              className="group relative flex bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all h-40 border border-blue-100"
+            >
+              {/* Left Side: Visual */}
+              <div
+                className={`w-32 flex flex-col items-center justify-center text-white p-4 relative
+                ${
+                  promo.discount_type === "percentage"
+                    ? "bg-blue-600"
+                    : "bg-[#0A1A44]"
+                }`}
+              >
+                {/* Perforation Circles */}
+                <div className="absolute -right-3 top-0 w-6 h-6 bg-[#cde4fa] rounded-full"></div>
+                <div className="absolute -right-3 bottom-0 w-6 h-6 bg-[#cde4fa] rounded-full"></div>
 
-        {/* "Add New" Placeholder Card */}
-        <div className="border-2 border-dashed border-blue-300 rounded-xl h-40 flex flex-col items-center justify-center text-blue-400 cursor-pointer hover:bg-blue-50 transition-colors bg-white/30">
-          <Plus className="w-8 h-8 mb-2" />
-          <span className="font-bold text-sm">Add New Campaign</span>
-        </div>
-      </div>
+                <span className="text-3xl font-serif font-bold">
+                  {promo.discount_type === "percentage"
+                    ? `${promo.discount_value}%`
+                    : `₱${promo.discount_value}`}
+                </span>
+                <span className="text-[10px] uppercase tracking-widest opacity-80 mt-1">
+                  OFF
+                </span>
+              </div>
 
-      {/* --- Expired / Past Table --- */}
-      <div className="bg-white rounded-3xl p-8 shadow-sm border border-blue-100">
-        <h3 className="text-lg font-bold text-slate-700 mb-4">
-          Past Promotions
-        </h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="text-xs font-bold text-slate-400 uppercase border-b border-slate-100">
-                <th className="pb-3 pl-2">Promo Name</th>
-                <th className="pb-3">Code</th>
-                <th className="pb-3">Discount</th>
-                <th className="pb-3">Usage</th>
-                <th className="pb-3">Status</th>
-              </tr>
-            </thead>
-            <tbody className="text-sm">
-              {expiredPromos.map((promo) => (
-                <tr
-                  key={promo.id}
-                  className="border-b border-slate-50 last:border-0 hover:bg-slate-50"
-                >
-                  <td className="py-4 pl-2 font-medium text-slate-800">
-                    {promo.name}
-                  </td>
-                  <td className="py-4 font-mono text-slate-500">
-                    {promo.code}
-                  </td>
-                  <td className="py-4 text-slate-800">{promo.discountValue}</td>
-                  <td className="py-4 text-slate-600">
-                    {promo.usageCount} times
-                  </td>
-                  <td className="py-4">
-                    <span className="text-xs font-bold bg-gray-100 text-gray-500 px-2 py-1 rounded-md">
+              {/* Divider */}
+              <div className="w-0 border-l-2 border-dashed border-gray-200 relative my-3"></div>
+
+              {/* Right Side: Info */}
+              <div className="flex-1 p-5 flex flex-col justify-between">
+                <div>
+                  <div className="flex justify-between items-start">
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider
+                          ${
+                            promo.status === "active"
+                              ? "bg-green-100 text-green-700"
+                              : "bg-gray-100 text-gray-500"
+                          }`}
+                    >
                       {promo.status}
                     </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                    <MoreVertical className="w-4 h-4 text-gray-300 cursor-pointer" />
+                  </div>
+                  <h3 className="font-bold text-[#0A1A44] text-lg mt-2 truncate">
+                    {promo.name}
+                  </h3>
+                  <p className="text-xs text-slate-500 flex items-center gap-1 mt-1">
+                    <Calendar className="w-3 h-3" />
+                    {promo.valid_until
+                      ? new Date(promo.valid_until).toLocaleDateString()
+                      : "No Expiry"}
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between bg-slate-50 rounded-lg p-2 border border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <Ticket className="w-4 h-4 text-slate-400" />
+                    <span className="font-mono font-bold text-slate-700 tracking-wider">
+                      {promo.code}
+                    </span>
+                  </div>
+                  <Copy className="w-4 h-4 text-blue-400 cursor-pointer hover:text-blue-600" />
+                </div>
+              </div>
+            </div>
+          ))
+        )}
       </div>
+
+      {/* Create Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
+            <div className="flex justify-between items-center p-6 border-b border-gray-100">
+              <h3 className="text-xl font-bold text-[#0A1A44]">
+                Create New Promotion
+              </h3>
+              <button onClick={() => setIsModalOpen(false)}>
+                <X className="w-5 h-5 text-gray-400 hover:text-red-500" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreate} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">
+                  Campaign Name
+                </label>
+                <input
+                  required
+                  type="text"
+                  placeholder="e.g., Summer Sale"
+                  className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={formData.name}
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">
+                  Promo Code
+                </label>
+                <input
+                  required
+                  type="text"
+                  placeholder="e.g., SUMMER2025"
+                  className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase font-mono"
+                  value={formData.code}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      code: e.target.value.toUpperCase(),
+                    })
+                  }
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">
+                    Type
+                  </label>
+                  <select
+                    className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={formData.discount_type}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        discount_type: e.target.value as "percentage" | "fixed",
+                      })
+                    }
+                  >
+                    <option value="percentage">Percentage (%)</option>
+                    <option value="fixed">Fixed Amount (₱)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">
+                    Value
+                  </label>
+                  <input
+                    required
+                    type="number"
+                    placeholder="20"
+                    className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={formData.discount_value}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        discount_value: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">
+                  Valid Until
+                </label>
+                <input
+                  type="date"
+                  className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={formData.valid_until}
+                  onChange={(e) =>
+                    setFormData({ ...formData, valid_until: e.target.value })
+                  }
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full bg-[#0A1A44] hover:bg-[#1a3a75] text-white font-bold py-4 rounded-xl mt-4 flex justify-center items-center gap-2"
+              >
+                {isSubmitting ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  "Create Promotion"
+                )}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

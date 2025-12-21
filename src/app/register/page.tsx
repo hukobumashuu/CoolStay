@@ -189,7 +189,7 @@ export default function RegisterPage() {
 
       <Navbar logoVariant="text" />
 
-      <div className="relative z-10 flex-grow flex items-center justify-center p-4 pt-40 pb-20">
+      <div className="relative z-10 grow flex items-center justify-center p-4 pt-40 pb-20">
         <AuthCard
           title="Create an account to unlock exclusive access to CoolStay!"
           subtitle="Join us today for seamless bookings and unforgettable experiences."

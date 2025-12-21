@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   BarChart3,
   TrendingUp,
@@ -25,56 +25,25 @@ import {
   Cell,
 } from "recharts";
 
-// --- Mock Data ---
+// Types
+type AnalyticsData = {
+  kpi: {
+    totalRevenue: number;
+    totalBookings: number;
+    activeGuests: number;
+    avgRating: number;
+  };
+  revenueChart: { name: string; total: number }[];
+  roomPopularity: { name: string; bookings: number; color: string }[];
+  recentReports: {
+    id: string;
+    report_type: string;
+    generated_at: string;
+    success: boolean;
+  }[];
+};
 
-const revenueData = [
-  { name: "Jan", total: 45000 },
-  { name: "Feb", total: 52000 },
-  { name: "Mar", total: 48000 },
-  { name: "Apr", total: 61000 },
-  { name: "May", total: 55000 },
-  { name: "Jun", total: 67000 },
-  { name: "Jul", total: 72000 },
-  { name: "Aug", total: 69000 },
-  { name: "Sep", total: 62000 },
-  { name: "Oct", total: 78000 },
-];
-
-const roomData = [
-  { name: "Deluxe Villa", bookings: 120, color: "#0A1A44" },
-  { name: "Family Cottage", bookings: 98, color: "#0077b6" },
-  { name: "Standard Room", bookings: 86, color: "#00b4d8" },
-  { name: "Barkada Room", bookings: 65, color: "#90e0ef" },
-];
-
-const recentReports = [
-  {
-    id: "RPT-001",
-    type: "Monthly Revenue",
-    date: "Oct 24, 2025",
-    status: "Success",
-  },
-  {
-    id: "RPT-002",
-    type: "Occupancy Forecast",
-    date: "Oct 23, 2025",
-    status: "Success",
-  },
-  {
-    id: "RPT-003",
-    type: "Staff Attendance",
-    date: "Oct 21, 2025",
-    status: "Failed",
-  },
-  {
-    id: "RPT-004",
-    type: "Inventory Usage",
-    date: "Oct 20, 2025",
-    status: "Success",
-  },
-];
-
-// --- Type Definition ---
+// Component for Stat Cards
 type StatCardProps = {
   title: string;
   value: string;
@@ -82,8 +51,6 @@ type StatCardProps = {
   isPositive: boolean;
   icon: React.ElementType;
 };
-
-// --- Components ---
 
 const StatCard = ({
   title,
@@ -119,16 +86,48 @@ const StatCard = ({
 );
 
 export default function ReportsAnalyticsPage() {
+  const [data, setData] = useState<AnalyticsData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const res = await fetch("/api/admin/analytics");
+        if (!res.ok) throw new Error("Failed");
+        const json = await res.json();
+        setData(json);
+      } catch (error) {
+        console.error("Error fetching analytics:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  if (isLoading)
+    return (
+      <div className="p-10 text-center text-slate-500 animate-pulse">
+        Crunching numbers...
+      </div>
+    );
+  if (!data)
+    return (
+      <div className="p-10 text-center text-red-500">
+        Failed to load analytics.
+      </div>
+    );
+
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-[#cde4fa] p-8 -m-6 font-sans">
-      {/* Page Header */}
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
         <div>
           <h1 className="text-4xl font-serif font-bold text-black">
             Analytics & Insights
           </h1>
           <p className="text-slate-600 font-medium mt-1">
-            Real-time performance metrics and generated reports.
+            Real-time performance metrics.
           </p>
         </div>
         <button className="flex items-center gap-2 bg-[#0A1A44] text-white px-6 py-3 rounded-xl font-bold hover:bg-[#1a3a75] transition-all shadow-lg hover:shadow-xl transform hover:scale-105">
@@ -141,28 +140,28 @@ export default function ReportsAnalyticsPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <StatCard
           title="Total Revenue"
-          value="₱ 842,500"
+          value={`₱ ${data.kpi.totalRevenue.toLocaleString()}`}
           change="+12.5%"
           isPositive={true}
           icon={TrendingUp}
         />
         <StatCard
           title="Total Bookings"
-          value="1,240"
+          value={data.kpi.totalBookings.toString()}
           change="+8.2%"
           isPositive={true}
           icon={CalendarDays}
         />
         <StatCard
           title="Active Guests"
-          value="84"
-          change="-2.1%"
-          isPositive={false}
+          value={data.kpi.activeGuests.toString()}
+          change="Live"
+          isPositive={true}
           icon={Users}
         />
         <StatCard
           title="Avg. Rating"
-          value="4.8"
+          value={data.kpi.avgRating.toString()}
           change="+0.2"
           isPositive={true}
           icon={BarChart3}
@@ -175,16 +174,15 @@ export default function ReportsAnalyticsPage() {
         <div className="lg:col-span-2 bg-white rounded-3xl p-8 shadow-sm border border-blue-100">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-xl font-bold text-[#0A1A44]">
-              Revenue Overview
+              Revenue Overview (Yearly)
             </h3>
             <select className="bg-slate-100 border-none rounded-lg text-sm font-medium px-3 py-1 text-slate-600 focus:ring-0">
-              <option>Last 12 Months</option>
-              <option>Last 30 Days</option>
+              <option>2025</option>
             </select>
           </div>
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={revenueData}>
+              <AreaChart data={data.revenueChart}>
                 <defs>
                   <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#0A1A44" stopOpacity={0.3} />
@@ -207,7 +205,7 @@ export default function ReportsAnalyticsPage() {
                   axisLine={false}
                   tickLine={false}
                   tick={{ fill: "#64748b", fontSize: 12 }}
-                  tickFormatter={(value: number) => `₱${value / 1000}k`}
+                  tickFormatter={(value) => `₱${value / 1000}k`}
                 />
                 <Tooltip
                   contentStyle={{
@@ -238,7 +236,11 @@ export default function ReportsAnalyticsPage() {
           </h3>
           <div className="h-[300px] w-full relative z-10">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={roomData} layout="vertical" barSize={20}>
+              <BarChart
+                data={data.roomPopularity}
+                layout="vertical"
+                barSize={20}
+              >
                 <XAxis type="number" hide />
                 <YAxis
                   dataKey="name"
@@ -253,10 +255,10 @@ export default function ReportsAnalyticsPage() {
                   contentStyle={{ borderRadius: "8px", color: "#000" }}
                 />
                 <Bar dataKey="bookings" radius={[0, 4, 4, 0]}>
-                  {roomData.map((entry, index) => (
+                  {data.roomPopularity.map((entry, index) => (
                     <Cell
                       key={`cell-${index}`}
-                      fill={entry.color === "#0A1A44" ? "#ffffff" : "#38bdf8"}
+                      fill={index % 2 === 0 ? "#ffffff" : "#38bdf8"}
                     />
                   ))}
                 </Bar>
@@ -289,40 +291,50 @@ export default function ReportsAnalyticsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {recentReports.map((report) => (
-                <tr
-                  key={report.id}
-                  className="group hover:bg-blue-50/50 transition-colors"
-                >
-                  <td className="py-4 pl-4 font-mono text-sm font-medium text-slate-600">
-                    {report.id}
-                  </td>
-                  <td className="py-4 font-bold text-[#0A1A44]">
-                    <div className="flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-blue-400" />
-                      {report.type}
-                    </div>
-                  </td>
-                  <td className="py-4 text-sm text-slate-600">{report.date}</td>
-                  <td className="py-4">
-                    <span
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold capitalize
-                                    ${
-                                      report.status === "Success"
-                                        ? "bg-green-100 text-green-800"
-                                        : "bg-red-100 text-red-800"
-                                    }`}
-                    >
-                      {report.status}
-                    </span>
-                  </td>
-                  <td className="py-4 text-right pr-4">
-                    <button className="text-slate-400 hover:text-[#0A1A44] transition-colors">
-                      <Download className="w-5 h-5" />
-                    </button>
+              {data.recentReports.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-4 text-center text-slate-500">
+                    No reports generated yet.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                data.recentReports.map((report) => (
+                  <tr
+                    key={report.id}
+                    className="group hover:bg-blue-50/50 transition-colors"
+                  >
+                    <td className="py-4 pl-4 font-mono text-sm font-medium text-slate-600">
+                      {report.id.substring(0, 8)}...
+                    </td>
+                    <td className="py-4 font-bold text-[#0A1A44]">
+                      <div className="flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-blue-400" />
+                        {report.report_type}
+                      </div>
+                    </td>
+                    <td className="py-4 text-sm text-slate-600">
+                      {new Date(report.generated_at).toLocaleDateString()}
+                    </td>
+                    <td className="py-4">
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold capitalize
+                                        ${
+                                          report.success
+                                            ? "bg-green-100 text-green-800"
+                                            : "bg-red-100 text-red-800"
+                                        }`}
+                      >
+                        {report.success ? "Success" : "Failed"}
+                      </span>
+                    </td>
+                    <td className="py-4 text-right pr-4">
+                      <button className="text-slate-400 hover:text-[#0A1A44] transition-colors">
+                        <Download className="w-5 h-5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
