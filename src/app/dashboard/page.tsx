@@ -4,14 +4,16 @@ import Navbar from "@/components/Navbar";
 import { AvailabilityCalendar } from "@/components/AvailabilityCalendar";
 import Link from "next/link";
 import HomeFooter from "@/components/HomeFooter";
-import { useEffect, useState, useCallback } from "react"; // Added useCallback
+import { useEffect, useState, useCallback } from "react";
 import Image from "next/image";
 import { User } from "@supabase/supabase-js";
-import { createClient } from "@/lib/supabase/client"; // Keep for Auth only
+import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
+import ReviewModal from "@/components/ReviewModal"; // IMPORT NEW COMPONENT
 
 // --- TYPES ---
 interface RoomType {
+  id: string; // Added ID for reviews
   name: string;
   image_url: string;
 }
@@ -25,7 +27,6 @@ interface Booking {
   room_types: RoomType | null;
 }
 
-// --- Welcome Component ---
 const WelcomeContent = ({ userName }: { userName: string }) => {
   return (
     <div className="text-white space-y-6 text-center lg:text-left animate-in fade-in slide-in-from-left-10 duration-700">
@@ -52,13 +53,15 @@ const WelcomeContent = ({ userName }: { userName: string }) => {
   );
 };
 
-// --- Booking Card Component ---
+// --- Updated Booking Card ---
 const BookingCard = ({
   booking,
   onCancel,
+  onReview,
 }: {
   booking: Booking;
   onCancel: (id: string) => void;
+  onReview: (booking: Booking) => void;
 }) => {
   const room = booking.room_types;
   const checkIn = new Date(booking.check_in_date).toLocaleDateString("en-US", {
@@ -73,6 +76,9 @@ const BookingCard = ({
 
   const canCancel =
     booking.status === "pending" || booking.status === "confirmed";
+  // Allow review if completed or checked_out
+  const canReview =
+    booking.status === "checked_out" || booking.status === "completed";
 
   return (
     <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-4 flex flex-col md:flex-row gap-4 shadow-xl border border-white/50 transition-transform hover:scale-[1.02]">
@@ -92,7 +98,6 @@ const BookingCard = ({
         <p className="text-sm text-gray-500 mb-2">
           Booking ID: {booking.id.slice(0, 8)}...
         </p>
-
         <div className="flex flex-wrap gap-4 text-sm text-gray-700">
           <div className="bg-blue-50 px-3 py-1 rounded-md">
             <span className="font-bold text-blue-900">IN:</span> {checkIn}
@@ -118,17 +123,28 @@ const BookingCard = ({
           {booking.status}
         </span>
 
-        <div className="text-right mt-2 space-y-2">
+        <div className="text-right mt-2 space-y-2 flex flex-col items-end">
           <p className="text-xl font-bold text-[#0A1A44]">
             ₱{booking.total_amount?.toLocaleString()}
           </p>
+
           {canCancel && (
             <button
               onClick={() => onCancel(booking.id)}
-              className="text-xs text-red-500 hover:text-red-700 underline font-semibold transition-colors"
+              className="text-xs text-red-500 hover:text-red-700 underline font-semibold"
             >
               Cancel Booking
             </button>
+          )}
+
+          {canReview && (
+            <Button
+              size="sm"
+              onClick={() => onReview(booking)}
+              className="bg-[#0A1A44] text-xs h-8"
+            >
+              Write Review
+            </Button>
           )}
         </div>
       </div>
@@ -136,13 +152,14 @@ const BookingCard = ({
   );
 };
 
-// --- Main Page Component ---
 export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 1. Fetch User (Client Side for Welcome Message)
+  // Review Modal State
+  const [reviewBooking, setReviewBooking] = useState<Booking | null>(null);
+
   useEffect(() => {
     const getUser = async () => {
       const supabase = createClient();
@@ -154,7 +171,6 @@ export default function DashboardPage() {
     getUser();
   }, []);
 
-  // 2. Fetch Bookings (Via API) - Wrapped in useCallback to satisfy linter
   const fetchBookings = useCallback(async () => {
     try {
       const res = await fetch("/api/bookings");
@@ -169,35 +185,40 @@ export default function DashboardPage() {
     }
   }, []);
 
-  // 3. Trigger Fetch on Mount
   useEffect(() => {
     fetchBookings();
-  }, [fetchBookings]); // Dependency array includes the stable function
+  }, [fetchBookings]);
 
-  // 4. Handle Cancel (Via API)
   const handleCancel = async (bookingId: string) => {
     if (!confirm("Are you sure you want to cancel this booking?")) return;
-
     try {
       const res = await fetch("/api/bookings/cancel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ booking_id: bookingId }),
       });
-
-      if (res.ok) {
-        fetchBookings(); // Refresh list
-      } else {
-        alert("Failed to cancel booking.");
-      }
+      if (res.ok) fetchBookings();
+      else alert("Failed to cancel booking.");
     } catch (error) {
-      console.error("Cancel failed", error);
+      console.error(error);
     }
   };
 
   return (
     <main className="min-h-screen flex flex-col font-sans">
       <Navbar activePage="home" logoVariant="text" />
+
+      {/* RENDER REVIEW MODAL */}
+      {reviewBooking && user && reviewBooking.room_types && (
+        <ReviewModal
+          bookingId={reviewBooking.id}
+          roomId={reviewBooking.room_types.id}
+          roomName={reviewBooking.room_types.name}
+          userId={user.id}
+          onClose={() => setReviewBooking(null)}
+          onSuccess={() => alert("Review posted!")}
+        />
+      )}
 
       <div className="relative grow flex flex-col pt-20 min-h-screen">
         <div className="absolute inset-0 bg-gray-900 z-0 fixed-bg">
@@ -217,7 +238,6 @@ export default function DashboardPage() {
                 <h2 className="text-2xl text-white font-serif font-bold border-b border-white/20 pb-2 mb-4">
                   Your Trips
                 </h2>
-
                 {loading ? (
                   <div className="text-white/60 animate-pulse">
                     Loading your trips...
@@ -229,6 +249,7 @@ export default function DashboardPage() {
                         key={booking.id}
                         booking={booking}
                         onCancel={handleCancel}
+                        onReview={(b) => setReviewBooking(b)} // Pass review handler
                       />
                     ))}
                   </div>
@@ -247,13 +268,11 @@ export default function DashboardPage() {
                 )}
               </div>
             </div>
-
             <div className="hidden lg:flex justify-end sticky top-24">
               <AvailabilityCalendar />
             </div>
           </div>
         </div>
-
         <HomeFooter showSignOut={true} />
       </div>
     </main>
