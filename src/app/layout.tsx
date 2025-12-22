@@ -23,6 +23,9 @@ const goblinOne = Goblin_One({
 export const metadata: Metadata = {
   title: "CoolStay",
   description: "Bulacan Great Escape",
+  icons: {
+    icon: "/images/logo/coolstayicon.png",
+  },
 };
 
 export default function RootLayout({

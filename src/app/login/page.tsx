@@ -3,25 +3,25 @@
 import Navbar from "@/components/Navbar";
 import Image from "next/image";
 import Link from "next/link";
-import React, { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation"; // Import useSearchParams
+import React, { useState, Suspense } from "react"; // Added Suspense
+import { useRouter, useSearchParams } from "next/navigation";
 import HomeFooter from "@/components/HomeFooter";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
+import { Loader2 } from "lucide-react"; // Import loader
 
 // Auth Components
 import { AuthInput } from "@/components/auth/AuthInput";
 import { AuthButton } from "@/components/auth/AuthButton";
 import { AuthCard } from "@/components/auth/AuthCard";
 
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter();
-  const searchParams = useSearchParams(); // Get params
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Check if there is a return URL
   const returnTo = searchParams.get("return_to");
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -39,7 +39,6 @@ export default function LoginPage() {
       setLoading(false);
     } else {
       toast.success("Welcome back!");
-      // REDIRECT LOGIC: If returnTo exists, go there. Otherwise dashboard.
       if (returnTo) {
         router.push(returnTo);
       } else {
@@ -112,5 +111,19 @@ export default function LoginPage() {
       </div>
       <HomeFooter />
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-gray-900">
+          <Loader2 className="w-10 h-10 animate-spin text-white" />
+        </div>
+      }
+    >
+      <LoginContent />
+    </Suspense>
   );
 }

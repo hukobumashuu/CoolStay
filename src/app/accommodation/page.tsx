@@ -7,10 +7,10 @@ import RoomCard, { BookingData } from "@/components/Roomcard";
 import BookRoomModal from "@/components/BookRoomModal";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react"; // Added Suspense
 import { toast } from "sonner";
 import { Loader2, Search, Users } from "lucide-react";
-import { useSearchParams, useRouter } from "next/navigation"; // Added hooks
+import { useSearchParams, useRouter } from "next/navigation";
 
 interface RoomType {
   id: string;
@@ -22,9 +22,10 @@ interface RoomType {
   total_rooms: number;
 }
 
-export default function AccommodationPage() {
+// 1. Rename the main logic component (Not default export anymore)
+function AccommodationContent() {
   const router = useRouter();
-  const searchParams = useSearchParams(); // To read URL params
+  const searchParams = useSearchParams();
 
   const [rooms, setRooms] = useState<RoomType[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,13 +39,11 @@ export default function AccommodationPage() {
   // Selected room for Modal
   const [selectedRoom, setSelectedRoom] = useState<BookingData | null>(null);
 
-  // 1. Initial Load & URL Param Check
   useEffect(() => {
     const init = async () => {
       setLoading(true);
       await fetchRooms();
 
-      // Check for returning params (e.g. from login redirect)
       const returnRoomId = searchParams.get("room_id");
       const returnCheckIn = searchParams.get("check_in");
       const returnCheckOut = searchParams.get("check_out");
@@ -53,20 +52,8 @@ export default function AccommodationPage() {
       if (returnCheckIn) setCheckInDate(returnCheckIn);
       if (returnCheckOut) setCheckOutDate(returnCheckOut);
       if (returnGuests) setGuestCount(parseInt(returnGuests));
-
-      // If we have a room ID, we need to find that room object to open the modal
-      if (returnRoomId) {
-        // We need to wait for rooms to be set, or fetch them.
-        // Since setRooms is async, let's fetch strictly for this logic if needed,
-        // but easier to just look at the fetched data if we can.
-        // Actually, best to just fetch that specific room details if it's missing from the list?
-        // For simplicity, let's look in the full list we just fetched.
-        // Note: fetchRooms() above sets state, but state updates aren't immediate.
-        // We should move the fetch logic out to return data.
-      }
     };
 
-    // Modified fetch to return data
     const fetchRoomsData = async () => {
       const supabase = createClient();
       const { data } = await supabase
@@ -81,7 +68,6 @@ export default function AccommodationPage() {
       if (data) {
         setRooms(data);
 
-        // RESTORE MODAL STATE
         const returnRoomId = searchParams.get("room_id");
         if (returnRoomId) {
           const roomToOpen = data.find((r) => r.id === returnRoomId);
@@ -91,7 +77,6 @@ export default function AccommodationPage() {
               name: roomToOpen.name,
               base_price: roomToOpen.base_price,
             });
-            // Clean up URL so refresh doesn't reopen modal
             router.replace("/accommodation", { scroll: false });
           }
         }
@@ -101,10 +86,9 @@ export default function AccommodationPage() {
 
     run();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Run once on mount
+  }, []);
 
   const fetchRooms = async () => {
-    // Kept for manual refresh if needed, but 'run' handles init
     const supabase = createClient();
     const { data, error } = await supabase
       .from("room_types")
@@ -341,5 +325,20 @@ export default function AccommodationPage() {
 
       <Footer />
     </main>
+  );
+}
+
+// 2. Create the default export wrapped in Suspense
+export default function AccommodationPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#D6EAF8] pt-28 flex items-center justify-center">
+          <Loader2 className="w-10 h-10 animate-spin text-[#0A1A44]" />
+        </div>
+      }
+    >
+      <AccommodationContent />
+    </Suspense>
   );
 }
