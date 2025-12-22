@@ -1,8 +1,12 @@
 "use client";
 
-import { useState } from "react"; // Removed useEffect
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { RoomSchema } from "@/lib/schemas";
+import { z } from "zod";
 
 interface RoomType {
   id: string;
@@ -21,14 +25,7 @@ interface RoomModalProps {
   roomToEdit?: RoomType | null;
 }
 
-const INITIAL_DATA = {
-  name: "",
-  description: "",
-  base_price: "",
-  capacity: "2",
-  total_rooms: "5",
-  image_url: "",
-};
+type RoomFormValues = z.infer<typeof RoomSchema>;
 
 export default function RoomModal({
   isOpen,
@@ -38,50 +35,69 @@ export default function RoomModal({
 }: RoomModalProps) {
   const [loading, setLoading] = useState(false);
 
-  // FIX: Initialize state ONCE based on props.
-  // Because we will force the component to re-mount in the parent, this always gets fresh data.
-  const [formData, setFormData] = useState(() => {
-    if (roomToEdit) {
-      return {
-        name: roomToEdit.name,
-        description: roomToEdit.description || "",
-        base_price: roomToEdit.base_price.toString(),
-        capacity: roomToEdit.capacity.toString(),
-        total_rooms: roomToEdit.total_rooms.toString(),
-        image_url: roomToEdit.image_url || "",
-      };
-    }
-    return INITIAL_DATA;
+  // FIX: Remove <RoomFormValues> generic
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm({
+    resolver: zodResolver(RoomSchema),
+    mode: "onChange",
+    defaultValues: {
+      name: "",
+      description: "",
+      base_price: 0,
+      capacity: 2,
+      total_rooms: 5,
+      image_url: "",
+    },
   });
+
+  useEffect(() => {
+    if (isOpen) {
+      if (roomToEdit) {
+        reset({
+          name: roomToEdit.name,
+          description: roomToEdit.description || "",
+          base_price: roomToEdit.base_price,
+          capacity: roomToEdit.capacity,
+          total_rooms: roomToEdit.total_rooms,
+          image_url: roomToEdit.image_url || "",
+        });
+      } else {
+        reset({
+          name: "",
+          description: "",
+          base_price: 0,
+          capacity: 2,
+          total_rooms: 5,
+          image_url: "",
+        });
+      }
+    }
+  }, [isOpen, roomToEdit, reset]);
 
   if (!isOpen) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Explicitly type 'data' here
+  const onSubmit = async (data: RoomFormValues) => {
     setLoading(true);
     const supabase = createClient();
-
     const payload = {
-      name: formData.name,
-      description: formData.description,
-      base_price: Number(formData.base_price),
-      capacity: Number(formData.capacity),
-      total_rooms: Number(formData.total_rooms),
-      image_url: formData.image_url,
+      ...data,
       updated_at: new Date().toISOString(),
     };
 
     let error;
 
     if (roomToEdit) {
-      // --- UPDATE MODE ---
       const { error: updateError } = await supabase
         .from("room_types")
         .update(payload)
         .eq("id", roomToEdit.id);
       error = updateError;
     } else {
-      // --- CREATE MODE ---
       const { error: insertError } = await supabase.from("room_types").insert({
         id: crypto.randomUUID(),
         created_at: new Date().toISOString(),
@@ -99,10 +115,14 @@ export default function RoomModal({
     setLoading(false);
   };
 
+  const inputClass = (hasError: boolean) =>
+    `w-full p-3 bg-gray-50 border ${
+      hasError ? "border-red-500" : "border-gray-200"
+    } rounded-xl focus:ring-2 focus:ring-[#0A1A44] outline-none transition-all`;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
       <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        {/* Header */}
         <div className="bg-[#0A1A44] p-6 text-white flex justify-between items-center shrink-0">
           <h2 className="text-xl font-serif font-bold">
             {roomToEdit ? "Edit Room Details" : "Add New Room"}
@@ -115,27 +135,27 @@ export default function RoomModal({
           </button>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
-          {/* Room Name */}
+        <form
+          onSubmit={handleSubmit(onSubmit)}
+          className="p-6 space-y-4 overflow-y-auto"
+        >
           <div>
             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
               Room Name
             </label>
             <input
-              required
-              type="text"
+              {...register("name")}
               placeholder="e.g. Deluxe Ocean View"
-              className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#0A1A44] outline-none transition-all"
-              value={formData.name}
-              onChange={(e) =>
-                setFormData({ ...formData, name: e.target.value })
-              }
+              className={inputClass(!!errors.name)}
             />
+            {errors.name && (
+              <p className="text-xs text-red-500 mt-1">
+                {errors.name.message as string}
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            {/* Price */}
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
                 Price (Night)
@@ -143,78 +163,63 @@ export default function RoomModal({
               <div className="relative">
                 <span className="absolute left-3 top-3 text-gray-400">₱</span>
                 <input
-                  required
                   type="number"
-                  className="w-full p-3 pl-8 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#0A1A44] outline-none"
-                  value={formData.base_price}
-                  onChange={(e) =>
-                    setFormData({ ...formData, base_price: e.target.value })
-                  }
+                  {...register("base_price")}
+                  className={`${inputClass(!!errors.base_price)} pl-8`}
                 />
               </div>
+              {errors.base_price && (
+                <p className="text-xs text-red-500 mt-1">
+                  {errors.base_price.message as string}
+                </p>
+              )}
             </div>
-            {/* Total Rooms */}
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
                 Total Units
               </label>
               <input
-                required
                 type="number"
-                className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#0A1A44] outline-none"
-                value={formData.total_rooms}
-                onChange={(e) =>
-                  setFormData({ ...formData, total_rooms: e.target.value })
-                }
+                {...register("total_rooms")}
+                className={inputClass(!!errors.total_rooms)}
               />
             </div>
           </div>
 
-          {/* Capacity */}
           <div>
             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
-              Max Capacity (Persons)
+              Max Capacity
             </label>
             <input
-              required
               type="number"
-              className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#0A1A44] outline-none"
-              value={formData.capacity}
-              onChange={(e) =>
-                setFormData({ ...formData, capacity: e.target.value })
-              }
+              {...register("capacity")}
+              className={inputClass(!!errors.capacity)}
             />
           </div>
 
-          {/* Image URL */}
           <div>
             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
               Image URL
             </label>
             <input
-              type="url"
-              placeholder="https://..."
-              className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#0A1A44] outline-none"
-              value={formData.image_url}
-              onChange={(e) =>
-                setFormData({ ...formData, image_url: e.target.value })
-              }
+              {...register("image_url")}
+              className={inputClass(!!errors.image_url)}
             />
+            {errors.image_url && (
+              <p className="text-xs text-red-500 mt-1">
+                {errors.image_url.message as string}
+              </p>
+            )}
           </div>
 
-          {/* Description */}
           <div>
             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
               Description
             </label>
             <textarea
               rows={3}
-              placeholder="Room details..."
-              className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#0A1A44] outline-none resize-none"
-              value={formData.description}
-              onChange={(e) =>
-                setFormData({ ...formData, description: e.target.value })
-              }
+              {...register("description")}
+              className={inputClass(!!errors.description)}
             />
           </div>
 

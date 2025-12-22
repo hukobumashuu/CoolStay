@@ -25,8 +25,20 @@ export default function LoginPage() {
     const email = formData.get("email") as string;
     const password = formData.get("password") as string;
 
+    // Basic Client-side Validation
+    if (!email || !password) {
+      setError("Please fill in all fields");
+      setLoading(false);
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setError("Please enter a valid email address");
+      setLoading(false);
+      return;
+    }
+
     try {
-      // 1. Call our Server-Side Login API
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -39,11 +51,9 @@ export default function LoginPage() {
         throw new Error(data.error || "Login failed");
       }
 
-      // 2. Redirect to the URL the server gave us
       router.push(data.redirectUrl);
       router.refresh();
     } catch (err: unknown) {
-      // FIX: Handle 'unknown' type safely
       if (err instanceof Error) {
         setError(err.message);
       } else {

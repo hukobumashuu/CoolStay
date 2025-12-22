@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import {
   Search,
-  Calendar,
   CreditCard,
   History,
   Phone,
@@ -153,7 +152,7 @@ export default function CustomerManagementPage() {
 
         {/* Search */}
         <div className="relative w-80 group">
-          <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-200 to-indigo-200 rounded-xl blur opacity-30 group-hover:opacity-60 transition duration-200" />
+          <div className="absolute -inset-0.5 bg-linear-to-r from-blue-200 to-indigo-200 rounded-xl blur opacity-30 group-hover:opacity-60 transition duration-200" />
           <div className="relative flex items-center bg-white rounded-xl shadow-sm border border-slate-200">
             <Search className="w-4 h-4 text-slate-400 ml-3" />
             <input
@@ -226,7 +225,7 @@ export default function CustomerManagementPage() {
                 </div>
 
                 {selectedCustomer?.id === guest.id && (
-                  <div className="absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-[#0A1A44] to-transparent pointer-events-none" />
+                  <div className="absolute right-0 top-0 bottom-0 w-16 bg-linear-to-l from-[#0A1A44] to-transparent pointer-events-none" />
                 )}
                 <ChevronRight
                   className={`w-4 h-4 relative z-10 ${
@@ -241,7 +240,7 @@ export default function CustomerManagementPage() {
         </div>
 
         {/* RIGHT: Details Panel */}
-        <div className="flex-1 bg-white rounded-[2rem] border border-slate-100 shadow-xl shadow-slate-200/50 overflow-hidden flex flex-col relative">
+        <div className="flex-1 bg-white rounded-4xl border border-slate-100 shadow-xl shadow-slate-200/50 overflow-hidden flex flex-col relative">
           {selectedCustomer ? (
             <>
               {/* 1. Brand Header */}
@@ -354,7 +353,7 @@ export default function CustomerManagementPage() {
 
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-5">
-                              <div className="text-center min-w-[3.5rem] py-1 bg-slate-50 rounded-lg">
+                              <div className="text-center min-w-14 py-1 bg-slate-50 rounded-lg">
                                 <div className="text-[10px] font-bold text-slate-400 uppercase">
                                   {new Date(
                                     booking.check_in_date

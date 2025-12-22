@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Goblin_One } from "next/font/google";
 import "./globals.css";
+// 1. Import Toaster
+import { Toaster } from "sonner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -12,7 +14,6 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// 1. Load Goblin One
 const goblinOne = Goblin_One({
   weight: "400",
   variable: "--font-goblin",
@@ -31,11 +32,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      {/* 2. Add the variable to the body class list */}
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${goblinOne.variable} antialiased`}
       >
         {children}
+        {/* 2. Add Toaster here. 'richColors' makes success green and error red automatically */}
+        <Toaster position="top-center" richColors />
       </body>
     </html>
   );

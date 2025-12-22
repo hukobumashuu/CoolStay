@@ -1,11 +1,14 @@
 "use client";
 
-import { useState } from "react";
-// Removed unused createClient import
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { X, Loader2 } from "lucide-react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { StaffSchema } from "@/lib/schemas";
+import { z } from "zod";
 
-// Matches DB Schema
+// 1. Define the DB shape separately
 interface StaffMember {
   id?: number;
   employee_id: string;
@@ -23,20 +26,10 @@ interface StaffModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  staffToEdit?: StaffMember | null;
+  staffToEdit?: StaffMember | null; // 2. Use the interface instead of 'any'
 }
 
-const INITIAL_DATA = {
-  employee_id: "",
-  full_name: "",
-  email: "",
-  phone: "",
-  position: "Staff",
-  department: "Housekeeping",
-  status: "active",
-  salary: 15000,
-  hire_date: new Date().toISOString().split("T")[0], // Today's date YYYY-MM-DD
-};
+type StaffFormValues = z.infer<typeof StaffSchema>;
 
 export default function StaffModal({
   isOpen,
@@ -46,29 +39,69 @@ export default function StaffModal({
 }: StaffModalProps) {
   const [loading, setLoading] = useState(false);
 
-  const [formData, setFormData] = useState<StaffMember>(() => {
-    if (staffToEdit) {
-      return {
-        ...staffToEdit,
-        // Ensure hire_date is formatted for input type="date"
-        hire_date: staffToEdit.hire_date
-          ? new Date(staffToEdit.hire_date).toISOString().split("T")[0]
-          : INITIAL_DATA.hire_date,
-      };
-    }
-    return INITIAL_DATA;
+  // 3. Remove <StaffFormValues> generic here. Let TS infer it from the resolver.
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm({
+    resolver: zodResolver(StaffSchema),
+    mode: "onChange",
+    defaultValues: {
+      employee_id: "",
+      full_name: "",
+      email: "",
+      phone: "",
+      position: "Staff",
+      department: "Housekeeping",
+      status: "active",
+      salary: 15000,
+      hire_date: new Date().toISOString().split("T")[0],
+    },
   });
+
+  useEffect(() => {
+    if (isOpen) {
+      if (staffToEdit) {
+        reset({
+          employee_id: staffToEdit.employee_id,
+          full_name: staffToEdit.full_name,
+          email: staffToEdit.email,
+          phone: staffToEdit.phone,
+          position: staffToEdit.position,
+          department: staffToEdit.department,
+          // FIX: Cast string to the specific enum type
+          status: staffToEdit.status as "active" | "inactive" | "terminated",
+          salary: staffToEdit.salary,
+          hire_date: staffToEdit.hire_date
+            ? new Date(staffToEdit.hire_date).toISOString().split("T")[0]
+            : new Date().toISOString().split("T")[0],
+        });
+      } else {
+        reset({
+          employee_id: "",
+          full_name: "",
+          email: "",
+          phone: "",
+          position: "Staff",
+          department: "Housekeeping",
+          status: "active",
+          salary: 15000,
+          hire_date: new Date().toISOString().split("T")[0],
+        });
+      }
+    }
+  }, [isOpen, staffToEdit, reset]);
 
   if (!isOpen) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // 4. Explicitly type 'data' here using the inferred Zod type
+  const onSubmit = async (data: StaffFormValues) => {
     setLoading(true);
-
     try {
-      // We use the same API route for both Add (POST) and Edit (PATCH)
       const method = staffToEdit ? "PATCH" : "POST";
-      const body = staffToEdit ? { ...formData, id: staffToEdit.id } : formData;
+      const body = staffToEdit ? { ...data, id: staffToEdit.id } : data;
 
       const res = await fetch("/api/admin/staff", {
         method,
@@ -94,75 +127,76 @@ export default function StaffModal({
     }
   };
 
+  const inputClass = (hasError: boolean) =>
+    `w-full p-2.5 bg-slate-50 border ${
+      hasError ? "border-red-500" : "border-slate-200"
+    } rounded-lg focus:ring-2 focus:ring-[#0A1A44] outline-none text-sm`;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in">
       <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        {/* Header */}
         <div className="bg-[#0A1A44] p-5 text-white flex justify-between items-center shrink-0">
           <h2 className="text-lg font-bold font-serif">
             {staffToEdit ? "Edit Staff Member" : "Add New Staff"}
           </h2>
           <button
             onClick={onClose}
-            className="hover:bg-white/10 p-1 rounded-full transition-colors"
+            className="hover:bg-white/10 p-1 rounded-full"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Form */}
         <form
-          onSubmit={handleSubmit}
+          onSubmit={handleSubmit(onSubmit)}
           className="p-6 space-y-4 overflow-y-auto custom-scrollbar"
         >
+          {/* ... Inputs remain the same ... */}
+          {/* Just showing one example of register usage */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
                 Employee ID
               </label>
               <input
-                required
-                type="text"
+                {...register("employee_id")}
                 placeholder="EMP-001"
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#0A1A44] outline-none font-mono text-sm"
-                value={formData.employee_id}
-                onChange={(e) =>
-                  setFormData({ ...formData, employee_id: e.target.value })
-                }
-                disabled={!!staffToEdit} // ID usually shouldn't change
+                className={inputClass(!!errors.employee_id)}
+                disabled={!!staffToEdit}
               />
+              {errors.employee_id && (
+                <p className="text-xs text-red-500">
+                  {errors.employee_id.message as string}
+                </p>
+              )}
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
                 Full Name
               </label>
               <input
-                required
-                type="text"
+                {...register("full_name")}
                 placeholder="John Doe"
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#0A1A44] outline-none text-sm"
-                value={formData.full_name}
-                onChange={(e) =>
-                  setFormData({ ...formData, full_name: e.target.value })
-                }
+                className={inputClass(!!errors.full_name)}
               />
+              {errors.full_name && (
+                <p className="text-xs text-red-500">
+                  {errors.full_name.message as string}
+                </p>
+              )}
             </div>
           </div>
 
+          {/* ... Rest of form ... */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
                 Email
               </label>
               <input
-                required
                 type="email"
-                placeholder="email@company.com"
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#0A1A44] outline-none text-sm"
-                value={formData.email}
-                onChange={(e) =>
-                  setFormData({ ...formData, email: e.target.value })
-                }
+                {...register("email")}
+                className={inputClass(!!errors.email)}
               />
             </div>
             <div>
@@ -170,14 +204,8 @@ export default function StaffModal({
                 Phone
               </label>
               <input
-                required
-                type="tel"
-                placeholder="0912..."
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#0A1A44] outline-none text-sm"
-                value={formData.phone}
-                onChange={(e) =>
-                  setFormData({ ...formData, phone: e.target.value })
-                }
+                {...register("phone")}
+                className={inputClass(!!errors.phone)}
               />
             </div>
           </div>
@@ -188,11 +216,8 @@ export default function StaffModal({
                 Department
               </label>
               <select
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#0A1A44] outline-none text-sm"
-                value={formData.department}
-                onChange={(e) =>
-                  setFormData({ ...formData, department: e.target.value })
-                }
+                {...register("department")}
+                className={inputClass(!!errors.department)}
               >
                 <option value="Front Desk">Front Desk</option>
                 <option value="Housekeeping">Housekeeping</option>
@@ -206,14 +231,8 @@ export default function StaffModal({
                 Position
               </label>
               <input
-                required
-                type="text"
-                placeholder="e.g. Senior Manager"
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#0A1A44] outline-none text-sm"
-                value={formData.position}
-                onChange={(e) =>
-                  setFormData({ ...formData, position: e.target.value })
-                }
+                {...register("position")}
+                className={inputClass(!!errors.position)}
               />
             </div>
           </div>
@@ -224,11 +243,8 @@ export default function StaffModal({
                 Status
               </label>
               <select
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#0A1A44] outline-none text-sm"
-                value={formData.status}
-                onChange={(e) =>
-                  setFormData({ ...formData, status: e.target.value })
-                }
+                {...register("status")}
+                className={inputClass(!!errors.status)}
               >
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
@@ -237,16 +253,12 @@ export default function StaffModal({
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
-                Monthly Salary (₱)
+                Salary (₱)
               </label>
               <input
-                required
                 type="number"
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#0A1A44] outline-none text-sm"
-                value={formData.salary}
-                onChange={(e) =>
-                  setFormData({ ...formData, salary: Number(e.target.value) })
-                }
+                {...register("salary")}
+                className={inputClass(!!errors.salary)}
               />
             </div>
           </div>
@@ -257,11 +269,8 @@ export default function StaffModal({
             </label>
             <input
               type="date"
-              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#0A1A44] outline-none text-sm"
-              value={formData.hire_date}
-              onChange={(e) =>
-                setFormData({ ...formData, hire_date: e.target.value })
-              }
+              {...register("hire_date")}
+              className={inputClass(!!errors.hire_date)}
             />
           </div>
 
@@ -276,10 +285,10 @@ export default function StaffModal({
             </Button>
             <Button
               type="submit"
-              className="flex-1 bg-[#0A1A44] text-white hover:bg-blue-900 flex items-center justify-center gap-2"
+              className="flex-1 bg-[#0A1A44] text-white"
               disabled={loading}
             >
-              {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+              {loading && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
               {staffToEdit ? "Save Changes" : "Create Profile"}
             </Button>
           </div>
