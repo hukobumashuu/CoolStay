@@ -5,15 +5,14 @@ import { createClient } from "@/lib/supabase/client";
 import Navbar from "@/components/Navbar";
 import HomeFooter from "@/components/HomeFooter";
 import { Button } from "@/components/ui/Button";
-import { User } from "@supabase/supabase-js"; // Import User type
+import { User } from "@supabase/supabase-js";
+import { toast } from "sonner"; // Import
 
 export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  // FIX: Typed 'user' correctly instead of 'any'
   const [user, setUser] = useState<User | null>(null);
 
-  // Form Fields
   const [formData, setFormData] = useState({
     full_name: "",
     phone: "",
@@ -30,7 +29,6 @@ export default function ProfilePage() {
       setUser(user);
 
       if (user) {
-        // Fetch public profile details
         const { data: profile } = await supabase
           .from("users")
           .select("*")
@@ -53,8 +51,10 @@ export default function ProfilePage() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return; // Guard clause
+    if (!user) return;
     setSaving(true);
+    const toastId = toast.loading("Updating profile..."); // Loading toast
+
     const supabase = createClient();
 
     const { error } = await supabase
@@ -68,10 +68,11 @@ export default function ProfilePage() {
       })
       .eq("id", user.id);
 
+    toast.dismiss(toastId); // Remove loading
     if (error) {
-      alert("Error updating profile: " + error.message);
+      toast.error("Error updating profile: " + error.message);
     } else {
-      alert("Profile updated successfully!");
+      toast.success("Profile updated successfully!");
     }
     setSaving(false);
   };
@@ -79,8 +80,6 @@ export default function ProfilePage() {
   return (
     <main className="min-h-screen flex flex-col bg-[#F0F4F8]">
       <Navbar activePage="" logoVariant="text" />
-
-      {/* FIX: Changed 'flex-grow' to 'grow' */}
       <div className="grow pt-28 pb-20 px-4">
         <div className="max-w-2xl mx-auto bg-white rounded-3xl shadow-xl p-8 border border-gray-100">
           <div className="mb-8 border-b border-gray-100 pb-4">
@@ -98,9 +97,7 @@ export default function ProfilePage() {
             </div>
           ) : (
             <form onSubmit={handleSave} className="space-y-6">
-              {/* Full Name */}
               <div className="space-y-2">
-                {/* FIX: Darker label color */}
                 <label className="text-sm font-bold text-[#0A1A44] uppercase">
                   Full Name
                 </label>
@@ -115,7 +112,6 @@ export default function ProfilePage() {
                 />
               </div>
 
-              {/* Phone */}
               <div className="space-y-2">
                 <label className="text-sm font-bold text-[#0A1A44] uppercase">
                   Phone Number
@@ -131,7 +127,6 @@ export default function ProfilePage() {
                 />
               </div>
 
-              {/* Gender */}
               <div className="space-y-2">
                 <label className="text-sm font-bold text-[#0A1A44] uppercase">
                   Gender
@@ -149,7 +144,6 @@ export default function ProfilePage() {
                 </select>
               </div>
 
-              {/* Address */}
               <div className="space-y-2">
                 <label className="text-sm font-bold text-[#0A1A44] uppercase">
                   Address

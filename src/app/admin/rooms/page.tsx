@@ -3,18 +3,17 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Image from "next/image";
-// CHANGE: Import the new RoomModal (rename the file first!)
 import RoomModal from "@/components/admin/RoomModal";
+import { toast } from "sonner"; // Import
 
-// Update Interface to match Modal requirements
 interface RoomType {
   id: string;
   name: string;
-  description: string; // Added description
+  description: string;
   base_price: number;
   image_url: string;
   total_rooms: number;
-  capacity: number; // Added capacity
+  capacity: number;
 }
 
 export default function RoomAvailabilityPage() {
@@ -23,11 +22,9 @@ export default function RoomAvailabilityPage() {
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [roomToEdit, setRoomToEdit] = useState<RoomType | null>(null); // State for the room being edited
+  const [roomToEdit, setRoomToEdit] = useState<RoomType | null>(null);
 
-  // Refresh Trigger
   const handleRefresh = () => {
     setLoading(true);
     setRefreshTrigger((prev) => prev + 1);
@@ -50,29 +47,26 @@ export default function RoomAvailabilityPage() {
     fetchRooms();
   }, [refreshTrigger]);
 
-  // --- HANDLERS ---
-
-  // 1. OPEN ADD MODAL
   const openAddModal = () => {
-    setRoomToEdit(null); // Clear edit data
+    setRoomToEdit(null);
     setIsModalOpen(true);
   };
 
-  // 2. OPEN EDIT MODAL
   const openEditModal = () => {
     const room = rooms.find((r) => r.id === selectedRoomId);
     if (room) {
-      setRoomToEdit(room); // Pass data to modal
+      setRoomToEdit(room);
       setIsModalOpen(true);
     }
   };
 
-  // 3. DELETE HANDLER
   const handleDelete = async () => {
     if (!selectedRoomId) return;
     if (!confirm("Are you sure you want to delete this room?")) return;
 
     setLoading(true);
+    const toastId = toast.loading("Deleting room...");
+
     const supabase = createClient();
     const { error } = await supabase
       .from("room_types")
@@ -80,9 +74,12 @@ export default function RoomAvailabilityPage() {
       .eq("id", selectedRoomId);
 
     if (error) {
-      alert(error.message);
+      toast.dismiss(toastId);
+      toast.error(error.message);
       setLoading(false);
     } else {
+      toast.dismiss(toastId);
+      toast.success("Room deleted successfully");
       setSelectedRoomId(null);
       handleRefresh();
     }
@@ -116,7 +113,7 @@ export default function RoomAvailabilityPage() {
                 : "bg-gray-100 text-gray-400 cursor-not-allowed"
             }`}
             disabled={!selectedRoomId}
-            onClick={openEditModal} // LINKED!
+            onClick={openEditModal}
           >
             EDIT
           </button>
@@ -202,7 +199,6 @@ export default function RoomAvailabilityPage() {
         </div>
       )}
 
-      {/* Reusable Modal (Add or Edit) */}
       {isModalOpen && (
         <RoomModal
           isOpen={isModalOpen}

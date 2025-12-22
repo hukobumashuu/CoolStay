@@ -9,11 +9,12 @@ import Image from "next/image";
 import { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
-import ReviewModal from "@/components/ReviewModal"; // IMPORT NEW COMPONENT
+import ReviewModal from "@/components/ReviewModal";
+import { toast } from "sonner"; // Import
 
 // --- TYPES ---
 interface RoomType {
-  id: string; // Added ID for reviews
+  id: string;
   name: string;
   image_url: string;
 }
@@ -53,7 +54,6 @@ const WelcomeContent = ({ userName }: { userName: string }) => {
   );
 };
 
-// --- Updated Booking Card ---
 const BookingCard = ({
   booking,
   onCancel,
@@ -76,7 +76,6 @@ const BookingCard = ({
 
   const canCancel =
     booking.status === "pending" || booking.status === "confirmed";
-  // Allow review if completed or checked_out
   const canReview =
     booking.status === "checked_out" || booking.status === "completed";
 
@@ -191,16 +190,26 @@ export default function DashboardPage() {
 
   const handleCancel = async (bookingId: string) => {
     if (!confirm("Are you sure you want to cancel this booking?")) return;
+
+    const toastId = toast.loading("Cancelling booking...");
     try {
       const res = await fetch("/api/bookings/cancel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ booking_id: bookingId }),
       });
-      if (res.ok) fetchBookings();
-      else alert("Failed to cancel booking.");
+      if (res.ok) {
+        toast.dismiss(toastId);
+        toast.success("Booking cancelled successfully.");
+        fetchBookings();
+      } else {
+        toast.dismiss(toastId);
+        toast.error("Failed to cancel booking.");
+      }
     } catch (error) {
       console.error(error);
+      toast.dismiss(toastId);
+      toast.error("An error occurred while cancelling.");
     }
   };
 
@@ -216,7 +225,7 @@ export default function DashboardPage() {
           roomName={reviewBooking.room_types.name}
           userId={user.id}
           onClose={() => setReviewBooking(null)}
-          onSuccess={() => alert("Review posted!")}
+          onSuccess={() => toast.success("Review posted successfully!")}
         />
       )}
 
@@ -249,7 +258,7 @@ export default function DashboardPage() {
                         key={booking.id}
                         booking={booking}
                         onCancel={handleCancel}
-                        onReview={(b) => setReviewBooking(b)} // Pass review handler
+                        onReview={(b) => setReviewBooking(b)}
                       />
                     ))}
                   </div>

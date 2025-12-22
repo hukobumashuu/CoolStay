@@ -16,6 +16,7 @@ import {
   MoreVertical,
   LucideIcon,
 } from "lucide-react";
+import { toast } from "sonner"; // Import toast
 
 // --- TYPES ---
 interface UserProfile {
@@ -48,7 +49,7 @@ interface ActionButtonProps {
   onClick: () => void;
   isLoading: boolean;
   variant?: "primary" | "secondary" | "danger";
-  disabled?: boolean; // Added disabled prop
+  disabled?: boolean;
 }
 
 // --- STATS COMPONENT ---
@@ -102,6 +103,7 @@ export default function AdminDashboard() {
       setBookings(data);
     } catch {
       console.error("Failed to load bookings");
+      // Optional: toast.error("Could not load bookings");
     } finally {
       setLoading(false);
     }
@@ -114,6 +116,8 @@ export default function AdminDashboard() {
   // Handle Status Update
   const handleStatusUpdate = async (id: string, newStatus: string) => {
     setProcessingId(id);
+    const toastId = toast.loading("Updating status...");
+
     try {
       const res = await fetch("/api/admin/bookings", {
         method: "PATCH",
@@ -130,11 +134,15 @@ export default function AdminDashboard() {
       setBookings((prev) =>
         prev.map((b) => (b.id === id ? { ...b, status: newStatus } : b))
       );
+
+      toast.dismiss(toastId);
+      toast.success(`Booking marked as ${newStatus.replace("_", " ")}`);
     } catch (err: unknown) {
+      toast.dismiss(toastId);
       if (err instanceof Error) {
-        alert(err.message);
+        toast.error(err.message);
       } else {
-        alert("An unknown error occurred");
+        toast.error("An unknown error occurred");
       }
     } finally {
       setProcessingId(null);
@@ -305,16 +313,12 @@ interface BookingCardProps {
 function BookingCard({ booking, onUpdate, processingId }: BookingCardProps) {
   const isProcessing = processingId === booking.id;
 
-  // --- NEW: Date Logic for Disabling Button ---
+  // --- Date Logic ---
   const checkInDate = new Date(booking.check_in_date);
   const today = new Date();
-
-  // Normalize time to midnight for fair comparison
   today.setHours(0, 0, 0, 0);
   checkInDate.setHours(0, 0, 0, 0);
-
   const isEarly = today < checkInDate;
-  // --------------------------------------------
 
   // Status Styling Configuration
   const statusConfig: Record<
@@ -480,7 +484,6 @@ function BookingCard({ booking, onUpdate, processingId }: BookingCardProps) {
               </>
             )}
 
-            {/* --- UPDATED CONFIRMED BUTTON --- */}
             {booking.status === "confirmed" && (
               <ActionButton
                 icon={LogIn}
@@ -500,10 +503,9 @@ function BookingCard({ booking, onUpdate, processingId }: BookingCardProps) {
                 onClick={() => onUpdate(booking.id, "checked_in")}
                 isLoading={isProcessing}
                 variant="primary"
-                disabled={isEarly} // Disables the button
+                disabled={isEarly}
               />
             )}
-            {/* -------------------------------- */}
 
             {booking.status === "checked_in" && (
               <ActionButton
@@ -539,8 +541,6 @@ function ActionButton({
 }: ActionButtonProps) {
   const baseStyles =
     "flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed";
-
-  // Add simple variant sizing or style tweaks if needed
   const widthStyle = variant === "danger" ? "w-auto" : "w-full";
 
   return (

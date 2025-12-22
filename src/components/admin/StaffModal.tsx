@@ -7,8 +7,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { StaffSchema } from "@/lib/schemas";
 import { z } from "zod";
+import { toast } from "sonner"; // Import toast
 
-// 1. Define the DB shape separately
 interface StaffMember {
   id?: number;
   employee_id: string;
@@ -26,7 +26,7 @@ interface StaffModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  staffToEdit?: StaffMember | null; // 2. Use the interface instead of 'any'
+  staffToEdit?: StaffMember | null;
 }
 
 type StaffFormValues = z.infer<typeof StaffSchema>;
@@ -39,7 +39,6 @@ export default function StaffModal({
 }: StaffModalProps) {
   const [loading, setLoading] = useState(false);
 
-  // 3. Remove <StaffFormValues> generic here. Let TS infer it from the resolver.
   const {
     register,
     handleSubmit,
@@ -71,7 +70,6 @@ export default function StaffModal({
           phone: staffToEdit.phone,
           position: staffToEdit.position,
           department: staffToEdit.department,
-          // FIX: Cast string to the specific enum type
           status: staffToEdit.status as "active" | "inactive" | "terminated",
           salary: staffToEdit.salary,
           hire_date: staffToEdit.hire_date
@@ -96,9 +94,9 @@ export default function StaffModal({
 
   if (!isOpen) return null;
 
-  // 4. Explicitly type 'data' here using the inferred Zod type
   const onSubmit = async (data: StaffFormValues) => {
     setLoading(true);
+    const toastId = toast.loading("Saving staff member...");
     try {
       const method = staffToEdit ? "PATCH" : "POST";
       const body = staffToEdit ? { ...data, id: staffToEdit.id } : data;
@@ -114,13 +112,18 @@ export default function StaffModal({
         throw new Error(err.error || "Failed to save");
       }
 
+      toast.dismiss(toastId);
+      toast.success(
+        staffToEdit ? "Staff member updated!" : "Staff member added!"
+      );
       onSuccess();
       onClose();
     } catch (error: unknown) {
+      toast.dismiss(toastId);
       if (error instanceof Error) {
-        alert(error.message);
+        toast.error(error.message);
       } else {
-        alert("An unexpected error occurred");
+        toast.error("An unexpected error occurred");
       }
     } finally {
       setLoading(false);
@@ -151,8 +154,7 @@ export default function StaffModal({
           onSubmit={handleSubmit(onSubmit)}
           className="p-6 space-y-4 overflow-y-auto custom-scrollbar"
         >
-          {/* ... Inputs remain the same ... */}
-          {/* Just showing one example of register usage */}
+          {/* Form Content (Unchanged) */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
@@ -187,7 +189,6 @@ export default function StaffModal({
             </div>
           </div>
 
-          {/* ... Rest of form ... */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">

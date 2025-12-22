@@ -10,8 +10,8 @@ import {
   X,
   Loader2,
 } from "lucide-react";
+import { toast } from "sonner"; // Import
 
-// Matches your DB Schema
 type Promotion = {
   id: string;
   code: string;
@@ -29,7 +29,6 @@ export default function PromotionsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Form State
   const [formData, setFormData] = useState<{
     name: string;
     code: string;
@@ -44,7 +43,6 @@ export default function PromotionsPage() {
     valid_until: "",
   });
 
-  // Fetch Promos
   const fetchPromos = async () => {
     try {
       const res = await fetch("/api/admin/promotions");
@@ -62,10 +60,11 @@ export default function PromotionsPage() {
     fetchPromos();
   }, []);
 
-  // Handle Create
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    const toastId = toast.loading("Creating promotion...");
+
     try {
       const res = await fetch("/api/admin/promotions", {
         method: "POST",
@@ -74,9 +73,8 @@ export default function PromotionsPage() {
       });
       if (!res.ok) throw new Error("Failed to create");
 
-      await fetchPromos(); // Refresh list
-      setIsModalOpen(false); // Close modal
-      // Reset form
+      await fetchPromos();
+      setIsModalOpen(false);
       setFormData({
         name: "",
         code: "",
@@ -84,17 +82,21 @@ export default function PromotionsPage() {
         discount_value: "",
         valid_until: "",
       });
+      toast.dismiss(toastId);
+      toast.success("Promotion created successfully!");
     } catch (error) {
       console.error("Error creating promotion:", error);
-      alert("Error creating promotion. Please try again.");
+      toast.dismiss(toastId);
+      toast.error("Error creating promotion. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // ... (Rest of the file structure remains exactly the same)
+  // Just returning the full component render for completeness
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-[#F5F8FA] p-8 -m-6 font-sans relative">
-      {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
         <div>
           <h1 className="text-4xl font-serif font-bold text-black">
@@ -114,7 +116,6 @@ export default function PromotionsPage() {
         </button>
       </div>
 
-      {/* Promos Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-12">
         {isLoading ? (
           <div className="col-span-full text-center text-slate-500 animate-pulse">
@@ -130,7 +131,6 @@ export default function PromotionsPage() {
               key={promo.id}
               className="group relative flex bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all h-40 border border-blue-100"
             >
-              {/* Left Side: Visual */}
               <div
                 className={`w-32 flex flex-col items-center justify-center text-white p-4 relative
                 ${
@@ -139,7 +139,6 @@ export default function PromotionsPage() {
                     : "bg-[#0A1A44]"
                 }`}
               >
-                {/* Perforation Circles */}
                 <div className="absolute -right-3 top-0 w-6 h-6 bg-[#cde4fa] rounded-full"></div>
                 <div className="absolute -right-3 bottom-0 w-6 h-6 bg-[#cde4fa] rounded-full"></div>
 
@@ -153,10 +152,8 @@ export default function PromotionsPage() {
                 </span>
               </div>
 
-              {/* Divider */}
               <div className="w-0 border-l-2 border-dashed border-gray-200 relative my-3"></div>
 
-              {/* Right Side: Info */}
               <div className="flex-1 p-5 flex flex-col justify-between">
                 <div>
                   <div className="flex justify-between items-start">
@@ -190,7 +187,13 @@ export default function PromotionsPage() {
                       {promo.code}
                     </span>
                   </div>
-                  <Copy className="w-4 h-4 text-blue-400 cursor-pointer hover:text-blue-600" />
+                  <Copy
+                    className="w-4 h-4 text-blue-400 cursor-pointer hover:text-blue-600"
+                    onClick={() => {
+                      navigator.clipboard.writeText(promo.code);
+                      toast.success("Code copied to clipboard!");
+                    }}
+                  />
                 </div>
               </div>
             </div>
@@ -198,7 +201,6 @@ export default function PromotionsPage() {
         )}
       </div>
 
-      {/* Create Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">

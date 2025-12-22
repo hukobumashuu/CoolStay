@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { RoomSchema } from "@/lib/schemas";
 import { z } from "zod";
+import { toast } from "sonner"; // Import
 
 interface RoomType {
   id: string;
@@ -35,7 +36,6 @@ export default function RoomModal({
 }: RoomModalProps) {
   const [loading, setLoading] = useState(false);
 
-  // FIX: Remove <RoomFormValues> generic
   const {
     register,
     handleSubmit,
@@ -80,9 +80,9 @@ export default function RoomModal({
 
   if (!isOpen) return null;
 
-  // Explicitly type 'data' here
   const onSubmit = async (data: RoomFormValues) => {
     setLoading(true);
+    const toastId = toast.loading("Saving room details...");
     const supabase = createClient();
     const payload = {
       ...data,
@@ -107,8 +107,11 @@ export default function RoomModal({
     }
 
     if (error) {
-      alert("Error: " + error.message);
+      toast.dismiss(toastId);
+      toast.error("Error: " + error.message);
     } else {
+      toast.dismiss(toastId);
+      toast.success(roomToEdit ? "Room updated!" : "Room created!");
       onSuccess();
       onClose();
     }
@@ -139,6 +142,7 @@ export default function RoomModal({
           onSubmit={handleSubmit(onSubmit)}
           className="p-6 space-y-4 overflow-y-auto"
         >
+          {/* Form Content Unchanged */}
           <div>
             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
               Room Name

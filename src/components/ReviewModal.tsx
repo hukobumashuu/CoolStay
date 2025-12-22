@@ -3,9 +3,10 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
+import { toast } from "sonner"; // Import
 
 interface ReviewModalProps {
-  bookingId: string; // We use bookingId to link the review to a stay
+  bookingId: string;
   roomId: string;
   roomName: string;
   userId: string;
@@ -37,10 +38,10 @@ export default function ReviewModal({
     });
 
     if (error) {
-      alert("Failed to submit review: " + error.message);
+      toast.error("Failed to submit review: " + error.message);
       setSubmitting(false);
     } else {
-      alert("Thank you for your review!");
+      toast.success("Thank you for your review!");
       onSuccess();
       onClose();
     }
@@ -57,7 +58,6 @@ export default function ReviewModal({
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Star Rating */}
           <div className="flex justify-center gap-2">
             {[1, 2, 3, 4, 5].map((star) => (
               <button
@@ -73,7 +73,6 @@ export default function ReviewModal({
             ))}
           </div>
 
-          {/* Comment */}
           <textarea
             required
             className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none resize-none h-32"

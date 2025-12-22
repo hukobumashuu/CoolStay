@@ -4,8 +4,8 @@ import React, { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { AuthButton } from "@/components/auth/AuthButton";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner"; // Import
 
-// Define BookingData interface
 export interface BookingData {
   id: string;
   name: string;
@@ -54,13 +54,13 @@ export default function BookRoomModal({ room, onClose }: BookRoomModalProps) {
     } = await supabase.auth.getUser();
 
     if (!user) {
-      alert("You must be logged in to book a room.");
+      // Changed alert to toast
+      toast.warning("You must be logged in to book a room.");
       router.push("/login");
       return;
     }
 
     try {
-      // 2. AVAILABILITY CHECK (Double Booking Protection)
       const { data: roomType, error: roomError } = await supabase
         .from("room_types")
         .select("total_rooms")
@@ -69,7 +69,6 @@ export default function BookRoomModal({ room, onClose }: BookRoomModalProps) {
 
       if (roomError) throw new Error("Could not fetch room details.");
 
-      // Count overlapping bookings
       const { count, error: countError } = await supabase
         .from("bookings")
         .select("*", { count: "exact", head: true })
@@ -89,7 +88,6 @@ export default function BookRoomModal({ room, onClose }: BookRoomModalProps) {
         );
       }
 
-      // 3. Insert Booking
       const { error: insertError } = await supabase.from("bookings").insert({
         guest_id: user.id,
         room_type_id: room.id,
@@ -103,14 +101,14 @@ export default function BookRoomModal({ room, onClose }: BookRoomModalProps) {
 
       if (insertError) throw insertError;
 
-      // Success
-      alert("Booking Request Sent! View it on your dashboard.");
+      // Changed success alert to toast
+      toast.success("Booking Request Sent! View it on your dashboard.");
       onClose();
       router.push("/dashboard");
     } catch (err: unknown) {
-      // <--- FIXED TYPE
       if (err instanceof Error) {
         setError(err.message);
+        toast.error(err.message); // Added toast also for visibility
       } else {
         setError("An unexpected error occurred.");
       }

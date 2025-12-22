@@ -17,6 +17,7 @@ import {
   Wallet,
   LucideIcon,
 } from "lucide-react";
+import { toast } from "sonner"; // Import
 
 // --- TYPES ---
 interface StaffMember {
@@ -106,6 +107,8 @@ export default function StaffManagementPage() {
     )
       return;
 
+    const toastId = toast.loading("Deleting staff member...");
+
     try {
       const res = await fetch(`/api/admin/staff?id=${id}`, {
         method: "DELETE",
@@ -118,11 +121,14 @@ export default function StaffManagementPage() {
 
       // Optimistic update
       setStaffList((prev) => prev.filter((s) => s.id !== id));
+      toast.dismiss(toastId);
+      toast.success("Staff member removed successfully");
     } catch (error: unknown) {
+      toast.dismiss(toastId);
       if (error instanceof Error) {
-        alert(error.message);
+        toast.error(error.message);
       } else {
-        alert("An unknown error occurred");
+        toast.error("An unknown error occurred");
       }
     }
   };
@@ -270,7 +276,6 @@ function StaffCard({
   onEdit: () => void;
   onDelete: () => void;
 }) {
-  // Department Color Coding
   const deptColor =
     {
       "Front Desk": "bg-pink-500",
@@ -282,11 +287,8 @@ function StaffCard({
 
   return (
     <div className="group relative bg-white rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border border-slate-100">
-      {/* Decorative "Lanyard" Top */}
       <div className={`h-2 w-full ${deptColor}`} />
-
       <div className="p-6 relative">
-        {/* Absolute Actions (Reveal on Hover) */}
         <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-4 group-hover:translate-x-0">
           <button
             onClick={(e) => {
@@ -310,7 +312,6 @@ function StaffCard({
           </button>
         </div>
 
-        {/* Header: Avatar & Info */}
         <div className="flex items-start gap-4 mb-6">
           <div className="relative">
             <div
@@ -318,7 +319,6 @@ function StaffCard({
             >
               {staff.full_name.charAt(0)}
             </div>
-            {/* Status Indicator */}
             <div
               className={`absolute -bottom-1 -right-1 w-5 h-5 border-4 border-white rounded-full ${
                 staff.status === "active"
@@ -345,7 +345,6 @@ function StaffCard({
           </div>
         </div>
 
-        {/* Details Block */}
         <div className="bg-slate-50 rounded-2xl p-4 space-y-3 border border-slate-100">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-slate-400 shadow-sm border border-slate-100">
@@ -393,7 +392,6 @@ function StaffCard({
           </div>
         </div>
 
-        {/* Footer */}
         <div className="mt-4 flex justify-between items-center text-xs">
           <div className="flex items-center gap-1.5 font-medium text-slate-400">
             <Briefcase className="w-3.5 h-3.5" />
