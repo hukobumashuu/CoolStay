@@ -3,10 +3,10 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
-import { toast } from "sonner"; // Import
+import { toast } from "sonner";
 
 interface ReviewModalProps {
-  bookingId: string;
+  bookingId: string; // Ensure this is passed
   roomId: string;
   roomName: string;
   userId: string;
@@ -15,6 +15,7 @@ interface ReviewModalProps {
 }
 
 export default function ReviewModal({
+  bookingId,
   roomId,
   roomName,
   userId,
@@ -30,9 +31,24 @@ export default function ReviewModal({
     setSubmitting(true);
     const supabase = createClient();
 
+    // Check if already reviewed (Double check for safety)
+    const { data: existing } = await supabase
+      .from("reviews")
+      .select("id")
+      .eq("booking_id", bookingId)
+      .single();
+
+    if (existing) {
+      toast.error("You have already reviewed this stay.");
+      setSubmitting(false);
+      onClose();
+      return;
+    }
+
     const { error } = await supabase.from("reviews").insert({
       user_id: userId,
       room_id: roomId,
+      booking_id: bookingId, // Link the booking!
       rating: rating,
       comment: comment,
     });
@@ -48,7 +64,7 @@ export default function ReviewModal({
   };
 
   return (
-    <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
       <div className="bg-white w-full max-w-md rounded-3xl p-8 shadow-2xl animate-in fade-in zoom-in">
         <h2 className="text-2xl font-serif font-bold text-[#0A1A44] mb-2">
           Rate your stay
@@ -75,7 +91,7 @@ export default function ReviewModal({
 
           <textarea
             required
-            className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none resize-none h-32"
+            className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none resize-none h-32 text-slate-800"
             placeholder="Tell us what you liked..."
             value={comment}
             onChange={(e) => setComment(e.target.value)}
@@ -85,7 +101,7 @@ export default function ReviewModal({
             <Button
               type="button"
               variant="outline"
-              className="flex-1"
+              className="flex-1 border-slate-200 text-slate-700"
               onClick={onClose}
             >
               Cancel

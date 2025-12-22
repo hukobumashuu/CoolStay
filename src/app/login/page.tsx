@@ -4,62 +4,47 @@ import Navbar from "@/components/Navbar";
 import Image from "next/image";
 import Link from "next/link";
 import React, { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation"; // Import useSearchParams
 import HomeFooter from "@/components/HomeFooter";
+import { createClient } from "@/lib/supabase/client";
+import { toast } from "sonner";
 
+// Auth Components
 import { AuthInput } from "@/components/auth/AuthInput";
 import { AuthButton } from "@/components/auth/AuthButton";
 import { AuthCard } from "@/components/auth/AuthCard";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams(); // Get params
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
+  // Check if there is a return URL
+  const returnTo = searchParams.get("return_to");
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError(null);
 
-    const formData = new FormData(e.currentTarget);
-    const email = formData.get("email") as string;
-    const password = formData.get("password") as string;
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
-    // Basic Client-side Validation
-    if (!email || !password) {
-      setError("Please fill in all fields");
+    if (error) {
+      toast.error(error.message);
       setLoading(false);
-      return;
-    }
-
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setError("Please enter a valid email address");
-      setLoading(false);
-      return;
-    }
-
-    try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Login failed");
-      }
-
-      router.push(data.redirectUrl);
-      router.refresh();
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        setError(err.message);
+    } else {
+      toast.success("Welcome back!");
+      // REDIRECT LOGIC: If returnTo exists, go there. Otherwise dashboard.
+      if (returnTo) {
+        router.push(returnTo);
       } else {
-        setError("An unexpected error occurred");
+        router.push("/dashboard");
       }
-      setLoading(false);
     }
   };
 
@@ -78,59 +63,54 @@ export default function LoginPage() {
 
       <Navbar logoVariant="text" />
 
-      <div className="relative z-10 grow flex items-center justify-center p-4 pt-40 pb-12">
-        <AuthCard title="Log in to access your exclusive resort experience.">
-          <form className="w-full space-y-6" onSubmit={handleLogin}>
-            {error && (
-              <div className="bg-red-500/20 border border-red-500/50 text-white text-sm p-3 rounded-lg">
-                {error}
-              </div>
-            )}
-
+      <div className="relative z-10 grow flex items-center justify-center p-4 pt-40 pb-20">
+        <AuthCard
+          title="Welcome Back"
+          subtitle="Sign in to manage your bookings and explore exclusive offers."
+        >
+          <form className="w-full space-y-5" onSubmit={handleLogin}>
             <div className="space-y-4">
               <AuthInput
-                name="email"
-                label="Email"
+                label="Email Address"
                 type="email"
                 placeholder="name@example.com"
-                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
               />
               <AuthInput
-                name="password"
                 label="Password"
                 type="password"
-                placeholder="••••••••"
-                required
+                placeholder="Enter your password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
               />
             </div>
 
             <div className="pt-2">
               <AuthButton type="submit" disabled={loading}>
-                {loading ? "Signing In..." : "SIGN IN"}
+                {loading ? "Signing in..." : "Sign In"}
               </AuthButton>
             </div>
 
             <div className="text-center space-y-4 pt-2">
               <p className="text-blue-50 text-sm">
-                Don’t have an account yet?{" "}
+                Don&apos;t have an account?{" "}
                 <Link
                   href="/register"
                   className="text-white font-bold underline decoration-white/50 hover:decoration-white transition-all"
                 >
-                  Sign up now!
+                  Create one now
                 </Link>
               </p>
-
               <p className="text-xs text-blue-100/60 leading-relaxed px-4">
-                By signing in or creating an account, you agree with our Terms &
-                Conditions and Privacy Statement.
+                By signing in, you agree with our Terms & Conditions and Privacy
+                Statement.
               </p>
             </div>
           </form>
         </AuthCard>
       </div>
-
-      <HomeFooter showSignOut={false} />
+      <HomeFooter />
     </main>
   );
 }

@@ -13,10 +13,12 @@ import {
   BarChart3,
   Megaphone,
   ShieldCheck,
+  ClipboardList, // Import the new icon
 } from "lucide-react";
 
 const menuItems = [
   { name: "Manage Bookings", href: "/admin/dashboard", icon: CalendarCheck },
+  { name: "Event Inquiries", href: "/admin/inquiries", icon: ClipboardList },
   { name: "Room Availability", href: "/admin/rooms", icon: BedDouble },
   { name: "Customer Management", href: "/admin/customers", icon: UserCog },
   { name: "Staff Management", href: "/admin/staff", icon: IdCard },
@@ -44,9 +46,8 @@ export default function AdminSidebar() {
 
   return (
     <aside className="fixed top-0 left-0 h-full w-64 bg-[#9ecbf7] z-40 hidden lg:flex flex-col font-sans">
-      {/* Brand Header - Dark Blue to match Navbar, NO border-r to fix the line glitch */}
+      {/* Brand Header */}
       <div className="h-16 flex items-center justify-center gap-3 bg-[#0A1A44] shadow-md z-50 shrink-0">
-        {/* Logo Image */}
         <div className="relative h-8 w-8 rounded-full overflow-hidden border-2 border-white/20">
           <Image
             src="/images/logo/coolstaylogo.jpg"
@@ -60,7 +61,7 @@ export default function AdminSidebar() {
         </h1>
       </div>
 
-      {/* Navigation Menu - Border added here instead of on the parent */}
+      {/* Navigation Menu */}
       <nav className="flex-1 overflow-y-auto py-6 px-4 space-y-2 custom-scrollbar border-r border-blue-300/50">
         <div className="px-2 mb-4">
           <h2 className="text-xl font-serif font-bold text-slate-900">

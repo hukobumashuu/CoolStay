@@ -10,9 +10,9 @@ import { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import ReviewModal from "@/components/ReviewModal";
-import { toast } from "sonner"; // Import
+import { toast } from "sonner";
+import { Star, CheckCircle2 } from "lucide-react"; // Added icons
 
-// --- TYPES ---
 interface RoomType {
   id: string;
   name: string;
@@ -58,10 +58,12 @@ const BookingCard = ({
   booking,
   onCancel,
   onReview,
+  hasReviewed,
 }: {
   booking: Booking;
   onCancel: (id: string) => void;
   onReview: (booking: Booking) => void;
+  hasReviewed: boolean;
 }) => {
   const room = booking.room_types;
   const checkIn = new Date(booking.check_in_date).toLocaleDateString("en-US", {
@@ -76,8 +78,11 @@ const BookingCard = ({
 
   const canCancel =
     booking.status === "pending" || booking.status === "confirmed";
+
+  // Logic: Can review if completed AND NOT yet reviewed
   const canReview =
-    booking.status === "checked_out" || booking.status === "completed";
+    (booking.status === "checked_out" || booking.status === "completed") &&
+    !hasReviewed;
 
   return (
     <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-4 flex flex-col md:flex-row gap-4 shadow-xl border border-white/50 transition-transform hover:scale-[1.02]">
@@ -119,7 +124,7 @@ const BookingCard = ({
               : "bg-gray-100 text-gray-700"
           }`}
         >
-          {booking.status}
+          {booking.status.replace("_", " ")}
         </span>
 
         <div className="text-right mt-2 space-y-2 flex flex-col items-end">
@@ -140,11 +145,23 @@ const BookingCard = ({
             <Button
               size="sm"
               onClick={() => onReview(booking)}
-              className="bg-[#0A1A44] text-xs h-8"
+              className="bg-[#0A1A44] text-xs h-8 flex items-center gap-1"
             >
-              Write Review
+              <Star className="w-3 h-3" /> Write Review
             </Button>
           )}
+
+          {/* IMPROVED REVIEWED UI */}
+          {hasReviewed &&
+            (booking.status === "checked_out" ||
+              booking.status === "completed") && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg shadow-sm">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span className="text-[10px] font-bold uppercase tracking-wide">
+                  Review Submitted
+                </span>
+              </div>
+            )}
         </div>
       </div>
     </div>
@@ -154,9 +171,11 @@ const BookingCard = ({
 export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [reviewedBookingIds, setReviewedBookingIds] = useState<Set<string>>(
+    new Set()
+  );
   const [loading, setLoading] = useState(true);
 
-  // Review Modal State
   const [reviewBooking, setReviewBooking] = useState<Booking | null>(null);
 
   useEffect(() => {
@@ -171,18 +190,33 @@ export default function DashboardPage() {
   }, []);
 
   const fetchBookings = useCallback(async () => {
+    if (!user) return;
     try {
+      const supabase = createClient();
+
       const res = await fetch("/api/bookings");
       if (res.ok) {
         const data = await res.json();
         setBookings(data.bookings);
       }
+
+      const { data: reviews } = await supabase
+        .from("reviews")
+        .select("booking_id")
+        .eq("user_id", user.id);
+
+      if (reviews) {
+        const reviewedIds = new Set(
+          reviews.map((r) => r.booking_id).filter(Boolean)
+        );
+        setReviewedBookingIds(reviewedIds as Set<string>);
+      }
     } catch (error) {
-      console.error("Failed to load bookings", error);
+      console.error("Failed to load data", error);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     fetchBookings();
@@ -217,7 +251,6 @@ export default function DashboardPage() {
     <main className="min-h-screen flex flex-col font-sans">
       <Navbar activePage="home" logoVariant="text" />
 
-      {/* RENDER REVIEW MODAL */}
       {reviewBooking && user && reviewBooking.room_types && (
         <ReviewModal
           bookingId={reviewBooking.id}
@@ -225,7 +258,10 @@ export default function DashboardPage() {
           roomName={reviewBooking.room_types.name}
           userId={user.id}
           onClose={() => setReviewBooking(null)}
-          onSuccess={() => toast.success("Review posted successfully!")}
+          onSuccess={() => {
+            fetchBookings();
+            // REMOVED: Redundant toast here. ReviewModal handles it.
+          }}
         />
       )}
 
@@ -259,6 +295,7 @@ export default function DashboardPage() {
                         booking={booking}
                         onCancel={handleCancel}
                         onReview={(b) => setReviewBooking(b)}
+                        hasReviewed={reviewedBookingIds.has(booking.id)}
                       />
                     ))}
                   </div>

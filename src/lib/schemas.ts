@@ -51,3 +51,20 @@ export const RoomSchema = z.object({
   image_url: z.string().optional().or(z.literal("")),
   description: z.string().optional(),
 });
+
+// --- EVENT INQUIRY SCHEMA ---
+export const EventInquirySchema = z.object({
+  fullName: z.string().min(2, "Name is required"),
+  email: z.string().email("Invalid email address"),
+  phone: z.string().min(10, "Phone number is required"),
+  eventType: z.enum([
+    "Wedding",
+    "Corporate",
+    "Social",
+    "Birthday",
+    "Other",
+  ] as const),
+  date: z.string().min(1, "Preferred date is required"),
+  guestCount: z.coerce.number().min(10, "Minimum of 10 guests for events"),
+  message: z.string().optional(),
+});
