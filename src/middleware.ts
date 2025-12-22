@@ -29,19 +29,45 @@ export async function middleware(request: NextRequest) {
     }
   );
 
+  // 1. Get the Auth User (from the Session)
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // --- SECURITY CHECK ---
-  // If trying to access /admin/* and NOT logged in -> Redirect to Login
+  // 2. PROTECTED ROUTE CHECK: /admin
   if (request.nextUrl.pathname.startsWith("/admin")) {
+    // A. Not Logged In -> Go to Login
     if (!user) {
-      return NextResponse.redirect(new URL("/login", request.url));
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      // Redirect to login, then send them back to where they were trying to go
+      url.searchParams.set("next", request.nextUrl.pathname);
+      return NextResponse.redirect(url);
     }
 
-    // Optional: Add a check here if user.email === 'admin@coolstay.com'
-    // For now, we allow any logged-in user to see it (MVP Phase)
+    // B. Logged In -> Check Permissions in DB
+    // We query the 'public.users' table because 'auth.users' doesn't have the 'is_admin' column.
+    const { data: dbUser } = await supabase
+      .from("users")
+      .select("is_admin, role")
+      .eq("id", user.id)
+      .single();
+
+    // If fetch failed, or user is not admin, or role isn't admin
+    const isAdmin = dbUser?.is_admin === true || dbUser?.role === "admin";
+
+    if (!isAdmin) {
+      // Unauthorized -> Go to Home Page (or a 403 page)
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
+  }
+
+  // 3. AUTH ROUTE CHECK: /login or /register
+  // If already logged in, don't let them see the login page again.
+  if (["/login", "/register"].includes(request.nextUrl.pathname)) {
+    if (user) {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
   }
 
   return response;
@@ -49,6 +75,13 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - public folder files (svg, png, jpg, etc.)
+     */
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
