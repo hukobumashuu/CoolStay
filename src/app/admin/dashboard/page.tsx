@@ -15,8 +15,10 @@ import {
   ArrowRight,
   MoreVertical,
   LucideIcon,
+  AlertTriangle, // Added
+  UserX, // Added
 } from "lucide-react";
-import { toast } from "sonner"; // Import toast
+import { toast } from "sonner";
 
 // --- TYPES ---
 interface UserProfile {
@@ -85,7 +87,14 @@ function StatCard({
   );
 }
 
-const TABS = ["All", "Pending", "Confirmed", "Checked In", "Cancelled"];
+const TABS = [
+  "All",
+  "Pending",
+  "Confirmed",
+  "Checked In",
+  "Cancelled",
+  "No Show",
+];
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("All");
@@ -103,7 +112,6 @@ export default function AdminDashboard() {
       setBookings(data);
     } catch {
       console.error("Failed to load bookings");
-      // Optional: toast.error("Could not load bookings");
     } finally {
       setLoading(false);
     }
@@ -115,6 +123,16 @@ export default function AdminDashboard() {
 
   // Handle Status Update
   const handleStatusUpdate = async (id: string, newStatus: string) => {
+    // Confirmation for No-Show
+    if (newStatus === "no_show") {
+      if (
+        !confirm(
+          "Mark this guest as No-Show? This will release the room inventory."
+        )
+      )
+        return;
+    }
+
     setProcessingId(id);
     const toastId = toast.loading("Updating status...");
 
@@ -136,7 +154,7 @@ export default function AdminDashboard() {
       );
 
       toast.dismiss(toastId);
-      toast.success(`Booking marked as ${newStatus.replace("_", " ")}`);
+      toast.success(`Booking updated to ${newStatus.replace("_", " ")}`);
     } catch (err: unknown) {
       toast.dismiss(toastId);
       if (err instanceof Error) {
@@ -155,6 +173,8 @@ export default function AdminDashboard() {
     const matchesTab =
       activeTab === "All"
         ? true
+        : activeTab === "No Show"
+        ? b.status === "no_show"
         : activeTab === "Pending"
         ? b.status === "pending"
         : activeTab === "Confirmed"
@@ -320,6 +340,9 @@ function BookingCard({ booking, onUpdate, processingId }: BookingCardProps) {
   checkInDate.setHours(0, 0, 0, 0);
   const isEarly = today < checkInDate;
 
+  // NEW: Logic for Overdue (Past Check-in Date but NOT checked in)
+  const isOverdue = today > checkInDate && booking.status === "confirmed";
+
   // Status Styling Configuration
   const statusConfig: Record<
     string,
@@ -350,12 +373,30 @@ function BookingCard({ booking, onUpdate, processingId }: BookingCardProps) {
       color: "text-red-600 bg-red-50",
       border: "bg-red-500",
     },
+    no_show: {
+      label: "No Show",
+      color: "text-purple-600 bg-purple-50",
+      border: "bg-purple-500",
+    },
   };
 
   const status = statusConfig[booking.status] || statusConfig.pending;
 
   return (
-    <div className="group relative bg-white rounded-2xl p-0 shadow-sm hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 transition-all duration-300 overflow-hidden">
+    <div
+      className={`group relative bg-white rounded-2xl p-0 shadow-sm border transition-all duration-300 overflow-hidden ${
+        isOverdue
+          ? "border-red-300 ring-4 ring-red-50"
+          : "border-slate-100 hover:shadow-md"
+      }`}
+    >
+      {/* Visual Alert for Overdue */}
+      {isOverdue && (
+        <div className="bg-red-500 text-white text-[10px] font-bold uppercase tracking-widest px-3 py-1 absolute top-0 right-0 z-10 rounded-bl-xl flex items-center gap-1">
+          <AlertTriangle className="w-3 h-3" /> Overdue Check-In
+        </div>
+      )}
+
       {/* Left Colored Accent Bar */}
       <div
         className={`absolute left-0 top-0 bottom-0 w-1.5 ${status.border} transition-all group-hover:w-2`}
@@ -485,26 +526,40 @@ function BookingCard({ booking, onUpdate, processingId }: BookingCardProps) {
             )}
 
             {booking.status === "confirmed" && (
-              <ActionButton
-                icon={LogIn}
-                label={
-                  isEarly
-                    ? `Due ${checkInDate.toLocaleDateString(undefined, {
-                        month: "short",
-                        day: "numeric",
-                      })}`
-                    : "Check In"
-                }
-                color={
-                  isEarly
-                    ? "bg-slate-100 text-slate-400 border border-slate-200"
-                    : "bg-blue-600 text-white hover:bg-blue-700"
-                }
-                onClick={() => onUpdate(booking.id, "checked_in")}
-                isLoading={isProcessing}
-                variant="primary"
-                disabled={isEarly}
-              />
+              <>
+                <ActionButton
+                  icon={LogIn}
+                  label={
+                    isEarly
+                      ? `Due ${checkInDate.toLocaleDateString(undefined, {
+                          month: "short",
+                          day: "numeric",
+                        })}`
+                      : "Check In"
+                  }
+                  color={
+                    isEarly
+                      ? "bg-slate-100 text-slate-400 border border-slate-200"
+                      : "bg-blue-600 text-white hover:bg-blue-700"
+                  }
+                  onClick={() => onUpdate(booking.id, "checked_in")}
+                  isLoading={isProcessing}
+                  variant="primary"
+                  disabled={isEarly}
+                />
+
+                {/* NEW: No Show Button (Only appears if Overdue or Today) */}
+                {!isEarly && (
+                  <ActionButton
+                    icon={UserX}
+                    label="No Show"
+                    color="text-purple-600 border border-purple-200 hover:bg-purple-50"
+                    onClick={() => onUpdate(booking.id, "no_show")}
+                    isLoading={isProcessing}
+                    variant="secondary"
+                  />
+                )}
+              </>
             )}
 
             {booking.status === "checked_in" && (
@@ -518,7 +573,8 @@ function BookingCard({ booking, onUpdate, processingId }: BookingCardProps) {
               />
             )}
             {(booking.status === "cancelled" ||
-              booking.status === "checked_out") && (
+              booking.status === "checked_out" ||
+              booking.status === "no_show") && (
               <button className="p-2 text-slate-300 hover:text-slate-500 transition-colors">
                 <MoreVertical className="w-5 h-5" />
               </button>

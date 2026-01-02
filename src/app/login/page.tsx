@@ -3,14 +3,12 @@
 import Navbar from "@/components/Navbar";
 import Image from "next/image";
 import Link from "next/link";
-import React, { useState, Suspense } from "react"; // Added Suspense
+import React, { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import HomeFooter from "@/components/HomeFooter";
-import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react"; // Import loader
+import { Loader2 } from "lucide-react";
 
-// Auth Components
 import { AuthInput } from "@/components/auth/AuthInput";
 import { AuthButton } from "@/components/auth/AuthButton";
 import { AuthCard } from "@/components/auth/AuthCard";
@@ -24,26 +22,60 @@ function LoginContent() {
 
   const returnTo = searchParams.get("return_to");
 
+  // Helper for email validation
+  const isValidEmail = (email: string) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // 1. Client-Side Validation
+    if (!email || !isValidEmail(email)) {
+      toast.error("Invalid email address");
+      return;
+    }
+    if (!password || password.length < 6) {
+      toast.error("Invalid password (must be at least 6 characters)");
+      return;
+    }
+
     setLoading(true);
 
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      // 2. Call the Server-Side Login API
+      // This API checks the password AND the user role (Admin vs User)
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
 
-    if (error) {
-      toast.error(error.message);
-      setLoading(false);
-    } else {
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Login failed");
+      }
+
       toast.success("Welcome back!");
+
+      // 3. Smart Redirect
+      // If there is a forced return URL (e.g. from booking), go there.
+      // Otherwise, go where the SERVER told us to go (Admin Dashboard vs User Dashboard)
       if (returnTo) {
         router.push(returnTo);
       } else {
-        router.push("/dashboard");
+        router.push(data.redirectUrl); // <--- THIS FIXES THE BUG
       }
+
+      router.refresh(); // Ensure the UI updates with the new session
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        toast.error(err.message);
+      } else {
+        toast.error("An unexpected error occurred");
+      }
+      setLoading(false);
     }
   };
 

@@ -7,7 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { StaffSchema } from "@/lib/schemas";
 import { z } from "zod";
-import { toast } from "sonner"; // Import toast
+import { toast } from "sonner";
 
 interface StaffMember {
   id?: number;
@@ -154,7 +154,7 @@ export default function StaffModal({
           onSubmit={handleSubmit(onSubmit)}
           className="p-6 space-y-4 overflow-y-auto custom-scrollbar"
         >
-          {/* Form Content (Unchanged) */}
+          {/* Form Content */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
@@ -177,7 +177,15 @@ export default function StaffModal({
                 Full Name
               </label>
               <input
-                {...register("full_name")}
+                {...register("full_name", {
+                  // FIX: Block numeric characters
+                  onChange: (e) => {
+                    e.target.value = e.target.value.replace(
+                      /[^a-zA-Z\s\-\.\']/g,
+                      ""
+                    );
+                  },
+                })}
                 placeholder="John Doe"
                 className={inputClass(!!errors.full_name)}
               />
@@ -205,7 +213,12 @@ export default function StaffModal({
                 Phone
               </label>
               <input
-                {...register("phone")}
+                {...register("phone", {
+                  // FIX: Block letters
+                  onChange: (e) => {
+                    e.target.value = e.target.value.replace(/[^0-9+]/g, "");
+                  },
+                })}
                 className={inputClass(!!errors.phone)}
               />
             </div>

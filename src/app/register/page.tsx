@@ -6,26 +6,24 @@ import Link from "next/link";
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import HomeFooter from "@/components/HomeFooter";
-import { toast } from "sonner"; // Import toast
+import { toast } from "sonner";
 
-// Auth Components
 import { AuthInput } from "@/components/auth/AuthInput";
 import { AuthSelect } from "@/components/auth/AuthSelect";
 import { AuthButton } from "@/components/auth/AuthButton";
 import { AuthCard } from "@/components/auth/AuthCard";
 
-// Validation
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { RegisterSchema } from "@/lib/schemas";
 import { z } from "zod";
 
-// Supabase
 import { createClient } from "@/lib/supabase/client";
 import { Check } from "lucide-react";
 
 type RegisterFormValues = z.infer<typeof RegisterSchema>;
 
+// ... (PasswordStrength Component remains same) ...
 const PasswordStrength = ({ password = "" }: { password?: string }) => {
   const checks = [
     { label: "8+ chars", valid: password.length >= 8 },
@@ -84,7 +82,7 @@ export default function RegisterPage() {
 
   const passwordValue = watch("password");
 
-  // --- 1. EMAIL CHECK ---
+  // ... (checkEmail function remains same) ...
   const checkEmail = async (e: React.FocusEvent<HTMLInputElement>) => {
     const email = e.target.value;
     const isValidFormat = await trigger("email");
@@ -118,7 +116,7 @@ export default function RegisterPage() {
     }
   };
 
-  // --- 2. PHONE CHECK ---
+  // ... (checkPhone function remains same) ...
   const checkPhone = async (e: React.FocusEvent<HTMLInputElement>) => {
     const phone = e.target.value;
     const isValidFormat = await trigger("phone");
@@ -152,6 +150,7 @@ export default function RegisterPage() {
     }
   };
 
+  // ... (onSubmit function remains same) ...
   const onSubmit = async (data: RegisterFormValues) => {
     if (isEmailTaken || isPhoneTaken || emailChecking || phoneChecking) return;
 
@@ -218,14 +217,30 @@ export default function RegisterPage() {
               <AuthInput
                 label="First Name"
                 placeholder="e.g. John"
-                {...register("firstName")}
+                {...register("firstName", {
+                  // FIX: Block numeric characters
+                  onChange: (e) => {
+                    e.target.value = e.target.value.replace(
+                      /[^a-zA-Z\s\-\.\']/g,
+                      ""
+                    );
+                  },
+                })}
                 error={errors.firstName?.message}
                 isSuccess={isFieldValid("firstName")}
               />
               <AuthInput
                 label="Last Name"
                 placeholder="e.g. Doe"
-                {...register("lastName")}
+                {...register("lastName", {
+                  // FIX: Block numeric characters
+                  onChange: (e) => {
+                    e.target.value = e.target.value.replace(
+                      /[^a-zA-Z\s\-\.\']/g,
+                      ""
+                    );
+                  },
+                })}
                 error={errors.lastName?.message}
                 isSuccess={isFieldValid("lastName")}
               />
@@ -260,7 +275,12 @@ export default function RegisterPage() {
                 label="Phone Number"
                 type="tel"
                 placeholder="09123456789"
-                {...register("phone")}
+                {...register("phone", {
+                  // FIX: Block non-numeric characters (allow +)
+                  onChange: (e) => {
+                    e.target.value = e.target.value.replace(/[^0-9+]/g, "");
+                  },
+                })}
                 onBlur={(e) => {
                   register("phone").onBlur(e);
                   checkPhone(e);
@@ -295,7 +315,6 @@ export default function RegisterPage() {
             </div>
 
             <div className="pt-4 max-w-md mx-auto w-full">
-              {/* BUTTON DISABLED LOGIC */}
               <AuthButton
                 type="submit"
                 disabled={

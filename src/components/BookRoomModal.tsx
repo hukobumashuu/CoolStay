@@ -40,15 +40,26 @@ export default function BookRoomModal({
   let nights = 0;
   let totalPrice = 0;
 
+  // Check for Day Tour vs Overnight based on room name
+  const isDayTour = room.name.toLowerCase().includes("day tour");
+  const isOvernight = room.name.toLowerCase().includes("overnight");
+
   if (checkIn && checkOut) {
     const start = new Date(checkIn);
     const end = new Date(checkOut);
     const diffTime = end.getTime() - start.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-    if (diffDays > 0) {
-      nights = diffDays;
-      totalPrice = diffDays * room.base_price;
+    if (isDayTour) {
+      // Day tours are flat rate per day (usually same day)
+      nights = 1;
+      totalPrice = room.base_price;
+    } else {
+      // Standard/Overnight calculation
+      if (diffDays > 0) {
+        nights = diffDays;
+        totalPrice = diffDays * room.base_price;
+      }
     }
   }
 
@@ -56,6 +67,48 @@ export default function BookRoomModal({
     e.preventDefault();
     setLoading(true);
     setError(null);
+
+    const today = new Date().toISOString().split("T")[0];
+
+    // 1. Validate Dates (No Past Dates)
+    if (checkIn < today) {
+      const msg = "Selected date must be today or later.";
+      setError(msg);
+      toast.error(msg);
+      setLoading(false);
+      return;
+    }
+
+    // 2. Validate Cottage Duration Rules
+    if (isDayTour) {
+      if (checkIn !== checkOut) {
+        const msg =
+          "Day Tour cottages are valid only for the same day (Check-in = Check-out).";
+        setError(msg);
+        toast.error(msg);
+        setLoading(false);
+        return;
+      }
+    }
+
+    if (isOvernight) {
+      if (checkIn === checkOut) {
+        const msg = "Overnight cottages require at least one night stay.";
+        setError(msg);
+        toast.error(msg);
+        setLoading(false);
+        return;
+      }
+    }
+
+    // Standard Overnight Logic (must check out after check in)
+    if (!isDayTour && checkOut <= checkIn) {
+      const msg = "Check-out date must be after check-in date.";
+      setError(msg);
+      toast.error(msg);
+      setLoading(false);
+      return;
+    }
 
     const supabase = createClient();
 
@@ -132,11 +185,12 @@ export default function BookRoomModal({
     }
   };
 
-  // Helper for input styles - INCREASED CONTRAST
   const inputClass =
-    "w-full p-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0A1A44] outline-none text-slate-900 font-medium placeholder:text-slate-400";
+    "w-full p-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-[#0A1A44] outline-none text-slate-900 font-medium placeholder:text-slate-400 disabled:bg-slate-100 disabled:text-slate-500";
   const labelClass =
     "text-xs font-bold text-[#0A1A44] uppercase tracking-wider mb-1 block";
+
+  const todayStr = new Date().toISOString().split("T")[0];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
@@ -169,7 +223,7 @@ export default function BookRoomModal({
                 type="date"
                 required
                 value={checkIn}
-                min={new Date().toISOString().split("T")[0]}
+                min={todayStr} // Disabled past dates
                 className={inputClass}
                 onChange={(e) => setCheckIn(e.target.value)}
               />
@@ -180,7 +234,7 @@ export default function BookRoomModal({
                 type="date"
                 required
                 value={checkOut}
-                min={checkIn || new Date().toISOString().split("T")[0]}
+                min={checkIn || todayStr} // Cannot be before check-in
                 className={inputClass}
                 onChange={(e) => setCheckOut(e.target.value)}
               />
@@ -188,28 +242,31 @@ export default function BookRoomModal({
           </div>
 
           <div>
-            <label className={labelClass}>Guests</label>
+            <label className={labelClass}>Guests (Locked)</label>
             <input
               type="number"
               min="1"
               max="10"
               value={guests}
-              onChange={(e) => {
-                const val = parseInt(e.target.value);
-                setGuests(isNaN(val) ? 1 : val);
-              }}
-              className={inputClass}
+              readOnly
+              disabled // Locked to prevent inconsistency
+              className={`${inputClass} cursor-not-allowed`}
             />
+            <p className="text-[10px] text-slate-400 mt-1">
+              Guest count is based on your availability search.
+            </p>
           </div>
 
           <div className="bg-slate-50 p-4 rounded-xl space-y-2 mt-4 border border-slate-200">
             <div className="flex justify-between text-sm text-slate-600 font-medium">
-              <span>Rate per night</span>
+              <span>Rate</span>
               <span>₱ {room.base_price.toLocaleString()}</span>
             </div>
             <div className="flex justify-between text-sm text-slate-600 font-medium">
-              <span>Nights</span>
-              <span>{nights > 0 ? nights : 0}</span>
+              <span>Duration</span>
+              <span>
+                {isDayTour ? "Day Tour (Same Day)" : `${nights} Nights`}
+              </span>
             </div>
             <div className="border-t border-slate-200 pt-3 mt-1 flex justify-between font-bold text-[#0A1A44] text-lg">
               <span>Total</span>

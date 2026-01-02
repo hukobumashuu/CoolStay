@@ -74,6 +74,16 @@ export default function EventInquiryModal({
 
   // ... (Rest of onSubmit and render logic remains exactly the same) ...
   const onSubmit = async (data: EventFormValues) => {
+    const selectedDate = new Date(data.date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Reset time part
+
+    if (selectedDate < today) {
+      toast.error(
+        "Invalid date. Please select a date that is today or in the future."
+      );
+      return;
+    }
     setIsSubmitting(true);
     try {
       const res = await fetch("/api/events/inquire", {

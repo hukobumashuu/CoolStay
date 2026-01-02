@@ -25,6 +25,7 @@ interface Booking {
   check_out_date: string;
   total_amount: number;
   status: string;
+  guests_count: number;
   room_types: RoomType | null;
 }
 
@@ -102,7 +103,12 @@ const BookingCard = ({
         <p className="text-sm text-gray-500 mb-2">
           Booking ID: {booking.id.slice(0, 8)}...
         </p>
-        <div className="flex flex-wrap gap-4 text-sm text-gray-700">
+
+        <div className="flex flex-wrap gap-3 text-sm text-gray-700 mt-1">
+          {/* Added Guest Count Badge */}
+          <div className="bg-blue-100 text-blue-800 px-3 py-1 rounded-md font-bold text-xs flex items-center">
+            👥 {booking.guests_count || 1} Pax
+          </div>
           <div className="bg-blue-50 px-3 py-1 rounded-md">
             <span className="font-bold text-blue-900">IN:</span> {checkIn}
           </div>

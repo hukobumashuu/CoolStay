@@ -1,18 +1,30 @@
 import { z } from "zod";
 
 // --- VALIDATION PATTERNS ---
+// Strict PH Phone: Matches 09171234567 or +639171234567
 const phoneRegex = /^(09|\+639)\d{9}$/;
+
+// Strict Name: Allows letters, spaces, dots, hyphens, apostrophes. NO NUMBERS.
+const nameRegex = /^[a-zA-Z\s\-\.\']+$/;
+const nameError =
+  "Must contain only letters, spaces, or valid punctuation (., -, '). No numbers allowed.";
 
 // --- USER REGISTRATION SCHEMA ---
 export const RegisterSchema = z
   .object({
-    firstName: z.string().min(2, "First name must be at least 2 characters"),
-    lastName: z.string().min(2, "Last name must be at least 2 characters"),
-    // FIX: Removed the errorMap config object to fix the overload error.
-    // Added 'as const' to ensure it's treated as a tuple.
+    firstName: z
+      .string()
+      .min(2, "First name must be at least 2 characters")
+      .regex(nameRegex, "First name: " + nameError),
+    lastName: z
+      .string()
+      .min(2, "Last name must be at least 2 characters")
+      .regex(nameRegex, "Last name: " + nameError),
     gender: z.enum(["male", "female", "other"] as const),
     email: z.string().email("Please enter a valid email address"),
-    phone: z.string().regex(phoneRegex, "Invalid PH phone number"),
+    phone: z
+      .string()
+      .regex(phoneRegex, "Invalid PH phone number (e.g., 0917...)"),
     password: z
       .string()
       .min(8, "Password must be at least 8 characters")
@@ -30,13 +42,18 @@ export const RegisterSchema = z
 
 // --- ADMIN: STAFF SCHEMA ---
 export const StaffSchema = z.object({
-  employee_id: z.string().min(1, "Employee ID is required"),
-  full_name: z.string().min(2, "Full Name is required"),
+  employee_id: z.string().min(1, "Employee ID is required"), // Alphanumeric allowed for IDs
+  full_name: z
+    .string()
+    .min(2, "Full Name is required")
+    .regex(nameRegex, "Full Name: " + nameError),
   email: z.string().email("Invalid email"),
   phone: z.string().regex(phoneRegex, "Invalid PH phone number"),
   department: z.string().min(1, "Department is required"),
-  position: z.string().min(1, "Position is required"),
-  // FIX: Added 'as const'
+  position: z
+    .string()
+    .min(1, "Position is required")
+    .regex(/^[a-zA-Z\s\-\.]+$/, "Position should not contain numbers"), // Position usually shouldn't have numbers
   status: z.enum(["active", "inactive", "terminated"] as const),
   salary: z.coerce.number().min(0, "Salary cannot be negative"),
   hire_date: z.string().min(1, "Date is required"),
@@ -54,9 +71,12 @@ export const RoomSchema = z.object({
 
 // --- EVENT INQUIRY SCHEMA ---
 export const EventInquirySchema = z.object({
-  fullName: z.string().min(2, "Name is required"),
+  fullName: z
+    .string()
+    .min(2, "Name is required")
+    .regex(nameRegex, "Name: " + nameError),
   email: z.string().email("Invalid email address"),
-  phone: z.string().min(10, "Phone number is required"),
+  phone: z.string().regex(phoneRegex, "Invalid PH phone number"), // Upgraded from simple .min(10)
   eventType: z.enum([
     "Wedding",
     "Corporate",
@@ -65,6 +85,9 @@ export const EventInquirySchema = z.object({
     "Other",
   ] as const),
   date: z.string().min(1, "Preferred date is required"),
-  guestCount: z.coerce.number().min(10, "Minimum of 10 guests for events"),
+  guestCount: z.coerce
+    .number()
+    .int()
+    .min(10, "Minimum of 10 guests for events"),
   message: z.string().optional(),
 });
