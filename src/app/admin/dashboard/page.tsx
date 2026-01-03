@@ -15,10 +15,12 @@ import {
   ArrowRight,
   MoreVertical,
   LucideIcon,
-  AlertTriangle, // Added
-  UserX, // Added
+  AlertTriangle,
+  UserX,
+  Plus, // Added Plus Icon
 } from "lucide-react";
 import { toast } from "sonner";
+import AdminBookingModal from "@/components/admin/AdminBookingModal"; // Added Modal Import
 
 // --- TYPES ---
 interface UserProfile {
@@ -102,6 +104,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false); // Modal State
 
   // Fetch bookings
   const fetchBookings = async () => {
@@ -267,16 +270,28 @@ export default function AdminDashboard() {
           ))}
         </div>
 
-        {/* Search */}
-        <div className="relative w-full md:w-80 mr-2">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-          <input
-            type="text"
-            placeholder="Search guests, rooms, IDs..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-transparent bg-slate-100 focus:bg-white focus:border-blue-100 focus:ring-4 focus:ring-blue-500/10 text-sm font-medium transition-all outline-none"
-          />
+        {/* RIGHT SIDE ACTIONS */}
+        <div className="flex items-center gap-3 w-full md:w-auto">
+          {/* Search */}
+          <div className="relative w-full md:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+            <input
+              type="text"
+              placeholder="Search guests, rooms, IDs..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-transparent bg-slate-100 focus:bg-white focus:border-blue-100 focus:ring-4 focus:ring-blue-500/10 text-sm font-medium transition-all outline-none"
+            />
+          </div>
+
+          {/* NEW BUTTON */}
+          <button
+            onClick={() => setIsBookingModalOpen(true)}
+            className="flex items-center gap-2 bg-[#0A1A44] text-white px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-blue-900 transition-all shadow-md active:scale-95 whitespace-nowrap"
+          >
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline">New Booking</span>
+          </button>
         </div>
       </div>
 
@@ -318,6 +333,15 @@ export default function AdminDashboard() {
           ))
         )}
       </div>
+
+      {/* RENDER MODAL AT BOTTOM */}
+      <AdminBookingModal
+        isOpen={isBookingModalOpen}
+        onClose={() => setIsBookingModalOpen(false)}
+        onSuccess={() => {
+          fetchBookings();
+        }}
+      />
     </div>
   );
 }

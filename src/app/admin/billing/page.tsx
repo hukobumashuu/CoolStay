@@ -1,113 +1,201 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { FileText, CheckCircle2, Clock } from "lucide-react";
+import {
+  CheckCircle2,
+  Clock,
+  Plus,
+  ArrowUpRight,
+  ArrowDownLeft,
+  Loader2,
+} from "lucide-react";
+import TransactionModal from "@/components/admin/TransactionModal";
+import ReceiptModal from "@/components/admin/ReceiptModal";
 
 type Invoice = {
   id: string;
   guest: string;
-  amount: string;
+  email: string;
+  phone: string;
+  amount: number;
   status: string;
   date: string;
+  type: "Payment" | "Refund";
+  method: string;
+  room_name: string;
+  check_in: string;
+  check_out: string;
 };
 
 export default function BillingPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Modals
+  const [isTransModalOpen, setIsTransModalOpen] = useState(false);
+  const [selectedReceipt, setSelectedReceipt] = useState<Invoice | null>(null);
+
+  const fetchInvoices = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch("/api/admin/billing");
+      if (!res.ok) throw new Error("Failed to fetch");
+      const data = await res.json();
+      setInvoices(data);
+    } catch (error) {
+      console.error("Error fetching invoices:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchInvoices = async () => {
-      try {
-        const res = await fetch("/api/admin/billing");
-        if (!res.ok) throw new Error("Failed to fetch");
-        const data = await res.json();
-        setInvoices(data);
-      } catch (error) {
-        console.error("Error fetching invoices:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
     fetchInvoices();
   }, []);
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-[#cde4fa] p-8 -m-6 font-sans">
-      <div className="flex items-center justify-between mb-10">
-        <h1 className="text-4xl font-serif font-bold text-black">
-          Billing & Invoices
-        </h1>
-      </div>
-
-      <div className="w-full max-w-6xl space-y-4">
-        {/* Header Row */}
-        <div className="hidden md:flex px-8 text-sm font-bold text-slate-600 uppercase tracking-wider">
-          <div className="w-1/5">Invoice ID</div>
-          <div className="w-1/4">Guest Name</div>
-          <div className="w-1/5">Date</div>
-          <div className="w-1/5">Amount</div>
-          <div className="w-1/5 text-right">Status</div>
+    <div className="min-h-[calc(100vh-4rem)] bg-[#F0F8FF] p-8 -m-6 font-sans text-slate-800">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8 gap-4">
+        <div>
+          <h1 className="text-3xl font-serif font-bold text-[#0A1A44]">
+            Billing & Transactions
+          </h1>
+          <p className="text-slate-500 text-sm">
+            Monitor revenue, cash flow, and refunds.
+          </p>
         </div>
 
-        {isLoading ? (
-          <div className="text-slate-500 font-medium animate-pulse">
-            Loading invoices...
-          </div>
-        ) : (
-          invoices.map((inv) => (
-            <div
-              key={inv.id}
-              className="flex flex-col md:flex-row items-center justify-between bg-[#a3cbf5] rounded-full px-8 py-5 shadow-sm w-full gap-4 md:gap-0 hover:bg-[#90bceb] transition-colors group"
-            >
-              <div className="flex flex-col md:flex-row md:items-center w-full text-black font-semibold text-lg gap-2 md:gap-0">
-                <div className="md:w-1/5 flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-[#0f2452]" />
-                  <span className="text-sm truncate w-24" title={inv.id}>
-                    {inv.id.substring(0, 8)}...
-                  </span>
+        <button
+          onClick={() => setIsTransModalOpen(true)}
+          className="bg-[#0A1A44] hover:bg-blue-900 text-white px-5 py-3 rounded-full font-bold text-sm tracking-wide transition-all shadow-md flex items-center gap-2 active:scale-95"
+        >
+          <Plus className="w-4 h-4" /> Record Transaction
+        </button>
+      </div>
+
+      {/* Table Container */}
+      <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+        {/* Table Header */}
+        <div className="hidden md:flex px-8 py-4 bg-slate-50 border-b border-slate-100 text-xs font-bold text-slate-500 uppercase tracking-wider">
+          <div className="w-[15%]">Reference</div>
+          <div className="w-[25%]">Guest Name</div>
+          <div className="w-[15%]">Date</div>
+          <div className="w-[15%]">Method</div>
+          <div className="w-[15%] text-right">Amount</div>
+          <div className="w-[15%] text-right">Status</div>
+        </div>
+
+        {/* Table Body */}
+        <div className="divide-y divide-slate-100">
+          {isLoading ? (
+            <div className="p-10 text-center text-slate-400 flex flex-col items-center gap-2">
+              <Loader2 className="w-6 h-6 animate-spin text-blue-200" />
+              <span>Loading transactions...</span>
+            </div>
+          ) : invoices.length === 0 ? (
+            <div className="p-10 text-center text-slate-400">
+              No transactions found.
+            </div>
+          ) : (
+            invoices.map((inv) => (
+              <div
+                key={inv.id}
+                className="flex flex-col md:flex-row items-center justify-between px-8 py-5 hover:bg-slate-50 transition-colors group cursor-default"
+              >
+                {/* Columns 1-4 */}
+                <div className="md:w-[15%] flex items-center gap-3 w-full mb-2 md:mb-0">
+                  <div
+                    className={`p-2 rounded-full ${
+                      inv.type === "Refund"
+                        ? "bg-red-50 text-red-500"
+                        : "bg-green-50 text-green-500"
+                    }`}
+                  >
+                    {inv.type === "Refund" ? (
+                      <ArrowUpRight className="w-4 h-4" />
+                    ) : (
+                      <ArrowDownLeft className="w-4 h-4" />
+                    )}
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-sm font-bold text-[#0A1A44] font-mono truncate w-20">
+                      {inv.id.substring(0, 8)}
+                    </span>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 md:hidden">
+                      {inv.type}
+                    </span>
+                  </div>
                 </div>
 
-                <div className="md:w-1/4">
-                  <span className="md:hidden text-sm opacity-60 mr-2">
-                    Guest:
-                  </span>
+                <div className="md:w-[25%] w-full mb-1 md:mb-0 text-sm font-medium text-slate-700">
                   {inv.guest}
                 </div>
 
-                <div className="md:w-1/5 text-sm opacity-80 md:opacity-100">
+                <div className="md:w-[15%] w-full mb-1 md:mb-0 text-sm text-slate-500">
                   {inv.date}
                 </div>
 
-                <div className="md:w-1/5 font-bold text-[#0f2452]">
-                  {inv.amount}
+                <div className="md:w-[15%] w-full mb-1 md:mb-0 text-sm font-bold uppercase text-slate-400">
+                  {inv.method}
                 </div>
-              </div>
 
-              <div className="flex items-center gap-6 w-full md:w-auto justify-between md:justify-end">
-                <div
-                  className={`px-4 py-1 rounded-full text-sm font-bold flex items-center gap-2
-                    ${
-                      inv.status === "Paid"
-                        ? "bg-green-200 text-green-800"
-                        : "bg-yellow-100 text-yellow-800"
+                {/* Column 5: Amount & Receipt */}
+                <div className="md:w-[15%] w-full flex flex-col items-end justify-center mb-2 md:mb-0">
+                  <span
+                    className={`font-bold text-base ${
+                      inv.type === "Refund" ? "text-red-500" : "text-[#0A1A44]"
                     }`}
-                >
-                  {inv.status === "Paid" ? (
-                    <CheckCircle2 className="w-4 h-4" />
-                  ) : (
-                    <Clock className="w-4 h-4" />
-                  )}
-                  {inv.status}
+                  >
+                    {inv.type === "Refund" ? "-" : "+"} ₱
+                    {Math.abs(inv.amount).toLocaleString()}
+                  </span>
+
+                  <button
+                    onClick={() => setSelectedReceipt(inv)}
+                    className="text-[10px] font-bold text-slate-400 hover:text-[#0A1A44] flex items-center gap-1 mt-1 transition-colors"
+                  >
+                    View Receipt
+                  </button>
                 </div>
 
-                <button className="bg-[#0f2452] hover:bg-[#1a3a75] text-white px-6 py-2 rounded-lg font-bold text-sm tracking-wide transition-colors shadow-md whitespace-nowrap">
-                  VIEW
-                </button>
+                {/* Status Badge */}
+                <div className="md:w-[15%] w-full flex justify-end">
+                  <div
+                    className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 uppercase tracking-wide
+                      ${
+                        inv.status === "paid" || inv.status === "completed"
+                          ? "bg-green-100 text-green-700"
+                          : inv.status === "failed"
+                          ? "bg-red-100 text-red-700"
+                          : "bg-yellow-100 text-yellow-700"
+                      }`}
+                  >
+                    {inv.status === "paid" ? (
+                      <CheckCircle2 className="w-3 h-3" />
+                    ) : (
+                      <Clock className="w-3 h-3" />
+                    )}
+                    {inv.status}
+                  </div>
+                </div>
               </div>
-            </div>
-          ))
-        )}
+            ))
+          )}
+        </div>
       </div>
+
+      <TransactionModal
+        isOpen={isTransModalOpen}
+        onClose={() => setIsTransModalOpen(false)}
+        onSuccess={fetchInvoices}
+      />
+
+      <ReceiptModal
+        isOpen={!!selectedReceipt}
+        onClose={() => setSelectedReceipt(null)}
+        data={selectedReceipt}
+      />
     </div>
   );
 }
