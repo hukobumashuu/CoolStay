@@ -9,10 +9,11 @@ import {
   ArrowDownLeft,
   Loader2,
   Eye,
-} from "lucide-react"; // Added Eye
+  FileText,
+} from "lucide-react";
 import TransactionModal from "@/components/admin/TransactionModal";
-import ReceiptModal from "@/components/admin/ReceiptModal";
-import PaymentProofModal from "@/components/admin/PaymentProofModal"; // Import New Modal
+// Removed ReceiptModal import as we are consolidating to PaymentProofModal
+import PaymentProofModal from "@/components/admin/PaymentProofModal";
 
 type Invoice = {
   id: string;
@@ -27,7 +28,10 @@ type Invoice = {
   room_name: string;
   check_in: string;
   check_out: string;
-  proof_url?: string; // Added proof_url
+  proof_url?: string;
+  // NEW FIELDS to match API and Modal requirements
+  booking_id: string;
+  total_booking_amount: number;
 };
 
 export default function BillingPage() {
@@ -36,8 +40,10 @@ export default function BillingPage() {
 
   // Modals
   const [isTransModalOpen, setIsTransModalOpen] = useState(false);
-  const [selectedReceipt, setSelectedReceipt] = useState<Invoice | null>(null);
-  const [proofToVerify, setProofToVerify] = useState<Invoice | null>(null); // New State
+
+  // We use the same state for both Verification and Viewing
+  const [selectedPayment, setSelectedPayment] = useState<Invoice | null>(null);
+  const [isReadOnly, setIsReadOnly] = useState(false);
 
   const fetchInvoices = async () => {
     setIsLoading(true);
@@ -56,6 +62,12 @@ export default function BillingPage() {
   useEffect(() => {
     fetchInvoices();
   }, []);
+
+  // Helper to open modal
+  const openModal = (inv: Invoice, readOnly: boolean) => {
+    setSelectedPayment(inv);
+    setIsReadOnly(readOnly);
+  };
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-[#F0F8FF] p-8 -m-6 font-sans text-slate-800">
@@ -147,7 +159,7 @@ export default function BillingPage() {
                   {inv.method}
                 </div>
 
-                {/* 5. Amount & Receipt */}
+                {/* 5. Amount & Receipt Link */}
                 <div className="md:w-[15%] w-full flex flex-col items-end justify-center mb-2 md:mb-0">
                   <span
                     className={`font-bold text-base ${
@@ -158,43 +170,44 @@ export default function BillingPage() {
                     {Math.abs(inv.amount).toLocaleString()}
                   </span>
 
+                  {/* Consolidate: "View Receipt" just opens the modal in ReadOnly mode */}
                   <button
-                    onClick={() => setSelectedReceipt(inv)}
+                    onClick={() => openModal(inv, true)}
                     className="text-[10px] font-bold text-slate-400 hover:text-[#0A1A44] flex items-center gap-1 mt-1 transition-colors"
                   >
-                    View Receipt
+                    <FileText className="w-3 h-3" /> Receipt
                   </button>
                 </div>
 
                 {/* 6. Status & Actions */}
                 <div className="md:w-[20%] w-full flex justify-end gap-2 items-center">
-                  {/* Show Verify Button if Pending + Has Proof */}
-                  {inv.status === "pending" && inv.proof_url && (
+                  {/* VERIFY BUTTON (Only for Pending) */}
+                  {inv.status === "pending" ? (
                     <button
-                      onClick={() => setProofToVerify(inv)}
+                      onClick={() => openModal(inv, false)} // ReadOnly = false (Edit Mode)
                       className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-md shadow-blue-200 hover:bg-blue-700 transition-all active:scale-95 flex items-center gap-1 animate-pulse"
                     >
-                      <Eye className="w-3 h-3" /> View
+                      <Eye className="w-3 h-3" /> Verify
                     </button>
+                  ) : (
+                    <div
+                      className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 uppercase tracking-wide
+                        ${
+                          inv.status === "paid" || inv.status === "completed"
+                            ? "bg-green-100 text-green-700"
+                            : inv.status === "failed"
+                            ? "bg-red-100 text-red-700"
+                            : "bg-yellow-100 text-yellow-700"
+                        }`}
+                    >
+                      {inv.status === "paid" || inv.status === "completed" ? (
+                        <CheckCircle2 className="w-3 h-3" />
+                      ) : (
+                        <Clock className="w-3 h-3" />
+                      )}
+                      {inv.status}
+                    </div>
                   )}
-
-                  <div
-                    className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 uppercase tracking-wide
-                      ${
-                        inv.status === "paid" || inv.status === "completed"
-                          ? "bg-green-100 text-green-700"
-                          : inv.status === "failed"
-                          ? "bg-red-100 text-red-700"
-                          : "bg-yellow-100 text-yellow-700"
-                      }`}
-                  >
-                    {inv.status === "paid" || inv.status === "completed" ? (
-                      <CheckCircle2 className="w-3 h-3" />
-                    ) : (
-                      <Clock className="w-3 h-3" />
-                    )}
-                    {inv.status}
-                  </div>
                 </div>
               </div>
             ))
@@ -202,32 +215,31 @@ export default function BillingPage() {
         </div>
       </div>
 
+      {/* CREATE TRANSACTION MODAL */}
       <TransactionModal
         isOpen={isTransModalOpen}
         onClose={() => setIsTransModalOpen(false)}
         onSuccess={fetchInvoices}
       />
 
-      <ReceiptModal
-        isOpen={!!selectedReceipt}
-        onClose={() => setSelectedReceipt(null)}
-        data={selectedReceipt}
-      />
-
+      {/* UNIFIED PAYMENT / RECEIPT MODAL */}
       <PaymentProofModal
-        isOpen={!!proofToVerify}
-        onClose={() => setProofToVerify(null)}
+        isOpen={!!selectedPayment}
+        onClose={() => setSelectedPayment(null)}
         payment={
-          proofToVerify
+          selectedPayment
             ? {
-                id: proofToVerify.id,
-                guest: proofToVerify.guest,
-                amount: proofToVerify.amount,
-                proof_url: proofToVerify.proof_url || "",
+                id: selectedPayment.id,
+                guest: selectedPayment.guest,
+                amount: selectedPayment.amount,
+                proof_url: selectedPayment.proof_url || "",
+                // These fields are now available in the Invoice type
+                total_booking_amount: selectedPayment.total_booking_amount,
+                booking_id: selectedPayment.booking_id,
               }
             : null
         }
-        readOnly={true}
+        readOnly={isReadOnly}
         onSuccess={fetchInvoices}
       />
     </div>

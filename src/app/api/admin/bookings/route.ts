@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
 // GET: Fetch all bookings with Payments
+// GET: Fetch all bookings with Payments
 export async function GET() {
   try {
     const supabase = await createClient();
@@ -13,7 +14,7 @@ export async function GET() {
     if (authError || !user)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    // UPDATED QUERY: Fetch payments specifically for balance calculation
+    // UPDATED QUERY: Added missing fields (payment_method, created_at, description)
     const { data, error } = await supabase
       .from("bookings")
       .select(
@@ -25,7 +26,10 @@ export async function GET() {
           id,
           amount,
           status,
-          proof_url
+          proof_url,
+          payment_method,
+          created_at,
+          description
         )
       `
       )
@@ -35,7 +39,6 @@ export async function GET() {
 
     return NextResponse.json(data);
   } catch (error: unknown) {
-    // Fixed: Log the error so 'error' is used
     console.error("Error fetching bookings:", error);
     return NextResponse.json(
       { error: "Failed to fetch bookings" },
@@ -43,7 +46,6 @@ export async function GET() {
     );
   }
 }
-
 // PATCH: Update Booking Status (With Security Checks)
 export async function PATCH(request: Request) {
   try {
@@ -107,32 +109,67 @@ export async function POST(request: Request) {
     const supabase = await createClient();
     const body = await request.json();
     const {
-      firstName,
-      lastName,
-      email,
-      phone,
-      roomId,
-      checkIn,
-      checkOut,
-      guests,
-      // UPDATED FIELDS
-      initialPayment,
-      paymentMethod,
+      room_type_id,
+      check_in_date,
+      check_out_date,
+      guests_count,
+      total_amount,
+      special_requests,
     } = body;
 
-    // 1. AVAILABILITY CHECK (Same as before)
+    // 1. Get Current User
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user)
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    // 2. SECURITY: Check for Duplicate Booking by SAME User
+    // Prevents accidental double-clicks or booking the same dates twice
+    const { data: existingUserBookings } = await supabase
+      .from("bookings")
+      .select("id, room_type_id, status")
+      .eq("guest_id", user.id)
+      .neq("status", "cancelled") // Ignore cancelled
+      .neq("status", "checked_out") // Ignore past trips
+      // Overlap Check: (StartA < EndB) and (EndA > StartB)
+      .lt("check_in_date", check_out_date)
+      .gt("check_out_date", check_in_date);
+
+    // If they already have a booking during this time...
+    if (existingUserBookings && existingUserBookings.length > 0) {
+      // Option A: Strict Mode (Block completely)
+      // return NextResponse.json({ error: "You already have a booking for these dates." }, { status: 400 });
+
+      // Option B: Smart Mode (Block only if it's the SAME Room Type)
+      // This allows them to book 2 DIFFERENT rooms, but not the same one twice.
+      const duplicateRoom = existingUserBookings.find(
+        (b) => b.room_type_id === room_type_id
+      );
+      if (duplicateRoom) {
+        return NextResponse.json(
+          {
+            error:
+              "You already have a booking for this room type on these dates.",
+          },
+          { status: 409 } // 409 Conflict
+        );
+      }
+    }
+
+    // 3. AVAILABILITY CHECK (Your existing logic to check if room is full)
     const { count: conflictCount } = await supabase
       .from("bookings")
       .select("*", { count: "exact", head: true })
-      .eq("room_type_id", roomId)
+      .eq("room_type_id", room_type_id)
       .neq("status", "cancelled")
-      .lt("check_in_date", checkOut)
-      .gt("check_out_date", checkIn);
+      .lt("check_in_date", check_out_date)
+      .gt("check_out_date", check_in_date);
 
     const { data: roomType } = await supabase
       .from("room_types")
-      .select("total_rooms, base_price")
-      .eq("id", roomId)
+      .select("total_rooms")
+      .eq("id", room_type_id)
       .single();
 
     if ((conflictCount || 0) >= (roomType?.total_rooms || 0)) {
@@ -142,93 +179,28 @@ export async function POST(request: Request) {
       );
     }
 
-    // 2. FIND OR CREATE USER (Same as before)
-    let userId;
-    const { data: existingUser } = await supabase
-      .from("users")
-      .select("id")
-      .eq("email", email)
-      .single();
-
-    if (existingUser) {
-      userId = existingUser.id;
-    } else {
-      const tempPassword = "WalkInGuest123!";
-      const { data: newUser, error: createError } = await supabase.auth.signUp({
-        email,
-        password: tempPassword,
-        options: {
-          data: {
-            full_name: `${firstName} ${lastName}`,
-            phone: phone,
-            role: "user",
-          },
-        },
-      });
-      if (createError)
-        throw new Error(
-          "Could not create guest account: " + createError.message
-        );
-      userId = newUser.user?.id;
-    }
-
-    if (!userId) throw new Error("Failed to resolve Guest ID");
-
-    // 3. CALCULATE PRICE (Same as before)
-    const start = new Date(checkIn);
-    const end = new Date(checkOut);
-    const nights =
-      Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) || 1;
-    const totalAmount = (roomType?.base_price || 0) * nights;
-
-    // 4. DETERMINE STATUSES based on Initial Payment
-    const payAmount = Number(initialPayment) || 0;
-
-    // Fixed: Use const instead of let
-    const bookingStatus = "confirmed";
-
-    let paymentStatus = "pending";
-    if (payAmount >= totalAmount) paymentStatus = "paid";
-    else if (payAmount > 0) paymentStatus = "partial";
-
-    // 5. CREATE BOOKING
-    const { data: booking, error: bookingError } = await supabase
+    // 4. Create Booking
+    const { data, error } = await supabase
       .from("bookings")
       .insert({
-        guest_id: userId,
-        room_type_id: roomId,
-        check_in_date: checkIn,
-        check_out_date: checkOut,
-        guests_count: guests,
-        total_amount: totalAmount,
-        status: bookingStatus,
-        payment_status: paymentStatus,
-        created_at: new Date().toISOString(),
+        guest_id: user.id,
+        room_type_id,
+        check_in_date,
+        check_out_date,
+        guests_count,
+        total_amount,
+        special_requests,
+        status: "pending",
+        payment_status: "pending",
       })
       .select()
       .single();
 
-    if (bookingError) throw bookingError;
+    if (error) throw error;
 
-    // 6. IF PAID, RECORD TRANSACTION (NEW STEP)
-    if (payAmount > 0) {
-      const { error: payError } = await supabase.from("payments").insert({
-        id: crypto.randomUUID(),
-        booking_id: booking.id,
-        user_id: userId,
-        amount: payAmount,
-        payment_method: paymentMethod || "cash",
-        status: "completed", // Admin entered it, so it's verified
-        description: "Initial payment upon booking",
-        created_at: new Date().toISOString(),
-      });
-
-      if (payError) console.error("Failed to record initial payment", payError);
-    }
-
-    return NextResponse.json(booking);
+    return NextResponse.json(data);
   } catch (error: unknown) {
-    let message = "Internal Error";
+    let message = "Internal Server Error";
     if (error instanceof Error) message = error.message;
     return NextResponse.json({ error: message }, { status: 500 });
   }

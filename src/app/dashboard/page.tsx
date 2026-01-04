@@ -111,14 +111,25 @@ const BookingCard = ({
   const canReview =
     (booking.status === "checked_out" || booking.status === "completed") &&
     !hasReviewed;
-  const showPayNow =
-    booking.status === "pending" && booking.payment_status === "pending";
 
-  // Calculate Total Paid for Receipt Logic
+  // --- NEW LOGIC: Check for pending payments ---
+  const hasPendingPayment = booking.payments?.some(
+    (p) => p.status === "pending"
+  );
+
+  // Calculate Total Paid
   const validPayments =
     booking.payments?.filter((p) => p.status === "completed") || [];
   const totalPaid = validPayments.reduce((sum, p) => sum + p.amount, 0);
+
+  const isFullyPaid = totalPaid >= booking.total_amount;
   const showDownload = totalPaid > 0;
+
+  // Logic: Show Pay Now if status is valid, not fully paid, AND no pending payment
+  const showPayNow =
+    (booking.status === "pending" || booking.status === "confirmed") &&
+    !isFullyPaid &&
+    !hasPendingPayment;
 
   // Receipt Data Prep
   const receiptData = {
@@ -191,6 +202,16 @@ const BookingCard = ({
               </Button>
             )}
 
+            {/* PENDING PAYMENT BADGE */}
+            {hasPendingPayment && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-50 text-yellow-700 border border-yellow-200 rounded-lg shadow-sm">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                <span className="text-[10px] font-bold uppercase tracking-wide">
+                  Verifying...
+                </span>
+              </div>
+            )}
+
             {/* RECEIPT DOWNLOAD BUTTON */}
             {showDownload && (
               <PDFDownloadLink
@@ -203,7 +224,6 @@ const BookingCard = ({
                 fileName={`Receipt_${booking.id.substring(0, 8)}.pdf`}
                 className="bg-slate-800 hover:bg-slate-900 text-white text-xs h-8 px-3 rounded-md flex items-center gap-1 shadow-md transition-all active:scale-95 font-medium"
               >
-                {/* Fixed: Removed @ts-expect-error since typings seem correct now */}
                 {({ loading }) =>
                   loading ? (
                     <Loader2 className="w-3 h-3 animate-spin" />

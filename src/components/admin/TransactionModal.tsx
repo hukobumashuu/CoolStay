@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Loader2, Search } from "lucide-react"; // Removed DollarSign
+import { X, Loader2, Search } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
@@ -12,6 +12,8 @@ interface BookingOption {
   guest_name: string;
   total_amount: number;
   balance: number;
+  paid: number;
+  room_name?: string;
 }
 
 // Helper Type for Supabase Result
@@ -21,6 +23,13 @@ interface BookingSearchResult {
   users: {
     full_name: string | null;
   } | null;
+  room_types: {
+    name: string;
+  } | null;
+  payments: {
+    amount: number;
+    status: string;
+  }[];
 }
 
 interface TransactionModalProps {
@@ -54,6 +63,7 @@ export default function TransactionModal({
   const [selectedBooking, setSelectedBooking] = useState<BookingOption | null>(
     null
   );
+  const [isSearching, setIsSearching] = useState(false);
 
   // 1. Handle Prefill Logic
   useEffect(() => {
@@ -63,10 +73,12 @@ export default function TransactionModal({
       setType("payment");
 
       if (prefill) {
+        // We don't have full details for prefill, but we have the ID and Amount needed
         setSelectedBooking({
           id: prefill.bookingId,
           guest_name: prefill.guestName,
-          total_amount: 0,
+          total_amount: 0, // Not needed for submission
+          paid: 0,
           balance: prefill.amount,
         });
         setAmount(prefill.amount);
@@ -83,28 +95,52 @@ export default function TransactionModal({
   useEffect(() => {
     if (!prefill && searchQuery.length > 2) {
       const search = async () => {
+        setIsSearching(true);
         const supabase = createClient();
+
+        // Search bookings by guest name
         const { data } = await supabase
           .from("bookings")
-          .select(`id, total_amount, users(full_name)`)
+          .select(
+            `
+            id, 
+            total_amount, 
+            users!inner(full_name),
+            room_types(name),
+            payments(amount, status)
+          `
+          )
           .ilike("users.full_name", `%${searchQuery}%`)
+          .order("created_at", { ascending: false })
           .limit(5);
 
         if (data) {
-          // Fixed: Typed 'b' explicitly
           const formatted = (data as unknown as BookingSearchResult[]).map(
-            (b) => ({
-              id: b.id,
-              guest_name: b.users?.full_name || "Unknown",
-              total_amount: b.total_amount,
-              balance: 0, // In a real app, calculate balance here too
-            })
+            (b) => {
+              // Calculate Balance
+              const totalPaid = b.payments
+                .filter((p) => p.status === "completed" || p.status === "paid")
+                .reduce((sum, p) => sum + p.amount, 0);
+
+              return {
+                id: b.id,
+                guest_name: b.users?.full_name || "Unknown",
+                room_name: b.room_types?.name,
+                total_amount: b.total_amount,
+                paid: totalPaid,
+                balance: b.total_amount - totalPaid,
+              };
+            }
           );
           setBookings(formatted);
         }
+        setIsSearching(false);
       };
+
       const timer = setTimeout(search, 500);
       return () => clearTimeout(timer);
+    } else {
+      setBookings([]);
     }
   }, [searchQuery, prefill]);
 
@@ -133,7 +169,6 @@ export default function TransactionModal({
       onSuccess();
       onClose();
     } catch {
-      // Fixed: Removed unused 'error' variable
       toast.error("Error recording transaction");
     } finally {
       setLoading(false);
@@ -144,16 +179,16 @@ export default function TransactionModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in">
-      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
+      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="bg-[#0A1A44] p-4 text-white flex justify-between items-center">
+        <div className="bg-[#0A1A44] p-4 text-white flex justify-between items-center shrink-0">
           <h2 className="font-bold">Record Transaction</h2>
           <button onClick={onClose}>
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="p-6 space-y-4">
+        <div className="p-6 space-y-5 overflow-y-auto">
           {/* 1. Guest Selector */}
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
@@ -162,38 +197,68 @@ export default function TransactionModal({
             {prefill ? (
               <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg text-blue-900 font-bold flex justify-between items-center">
                 <span>{prefill.guestName}</span>
-                <span className="text-xs bg-blue-200 px-2 py-1 rounded">
+                <span className="text-xs bg-blue-200 px-2 py-1 rounded text-blue-800">
                   LOCKED
                 </span>
               </div>
             ) : (
               <div className="relative">
-                <Search className="absolute left-3 top-2.5 text-slate-400 w-4 h-4" />
-                <input
-                  type="text"
-                  placeholder="Search guest name..."
-                  className="w-full pl-9 p-2 border rounded-lg text-sm"
-                  value={selectedBooking?.guest_name || searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    setSelectedBooking(null);
-                  }}
-                />
+                <div className="relative">
+                  <Search className="absolute left-3 top-2.5 text-slate-400 w-4 h-4" />
+                  <input
+                    type="text"
+                    placeholder="Search guest name..."
+                    className="w-full pl-9 p-2 border rounded-lg text-sm focus:ring-2 ring-blue-100 outline-none transition-all"
+                    value={
+                      selectedBooking ? selectedBooking.guest_name : searchQuery
+                    }
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setSelectedBooking(null);
+                    }}
+                  />
+                  {isSearching && (
+                    <Loader2 className="absolute right-3 top-2.5 w-4 h-4 animate-spin text-slate-400" />
+                  )}
+                </div>
+
+                {/* Dropdown Results */}
                 {!selectedBooking && bookings.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 bg-white shadow-xl border rounded-lg mt-1 z-10 max-h-40 overflow-y-auto">
+                  <div className="absolute top-full left-0 right-0 bg-white shadow-xl border rounded-lg mt-1 z-10 max-h-60 overflow-y-auto divide-y divide-slate-50">
                     {bookings.map((b) => (
                       <div
                         key={b.id}
-                        className="p-3 hover:bg-slate-50 cursor-pointer text-sm"
+                        className="p-3 hover:bg-slate-50 cursor-pointer transition-colors"
                         onClick={() => {
                           setSelectedBooking(b);
                           setBookings([]);
+                          // Auto-fill amount with balance if it's positive
+                          if (b.balance > 0) setAmount(b.balance);
                         }}
                       >
-                        <p className="font-bold">{b.guest_name}</p>
-                        <p className="text-xs text-slate-400">
-                          ID: {b.id.substring(0, 8)}...
-                        </p>
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-bold text-sm text-slate-800">
+                              {b.guest_name}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              {b.room_name || "Room"}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p
+                              className={`text-xs font-bold ${
+                                b.balance > 0
+                                  ? "text-red-500"
+                                  : "text-green-500"
+                              }`}
+                            >
+                              {b.balance > 0
+                                ? `Due: ₱${b.balance.toLocaleString()}`
+                                : "Paid"}
+                            </p>
+                          </div>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -202,10 +267,40 @@ export default function TransactionModal({
             )}
           </div>
 
+          {/* SELECTED BOOKING DETAILS CARD */}
+          {selectedBooking && !prefill && (
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-sm space-y-2">
+              <div className="flex justify-between text-slate-500">
+                <span>Total Bill:</span>
+                <span className="font-medium">
+                  ₱{selectedBooking.total_amount.toLocaleString()}
+                </span>
+              </div>
+              <div className="flex justify-between text-slate-500">
+                <span>Paid So Far:</span>
+                <span className="font-medium text-green-600">
+                  ₱{selectedBooking.paid.toLocaleString()}
+                </span>
+              </div>
+              <div className="border-t border-slate-200 pt-2 flex justify-between font-bold text-slate-800">
+                <span>Balance Remaining:</span>
+                <span
+                  className={`${
+                    selectedBooking.balance > 0
+                      ? "text-red-600"
+                      : "text-green-600"
+                  }`}
+                >
+                  ₱{selectedBooking.balance.toLocaleString()}
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* 2. Amount Input */}
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
-              Amount
+              Payment Amount
             </label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">
@@ -233,7 +328,7 @@ export default function TransactionModal({
                   className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${
                     type === "payment"
                       ? "bg-green-500 text-white shadow-sm"
-                      : "text-slate-500"
+                      : "text-slate-500 hover:text-slate-700"
                   }`}
                 >
                   Payment
@@ -243,7 +338,7 @@ export default function TransactionModal({
                   className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${
                     type === "refund"
                       ? "bg-red-500 text-white shadow-sm"
-                      : "text-slate-500"
+                      : "text-slate-500 hover:text-slate-700"
                   }`}
                 >
                   Refund
@@ -257,11 +352,12 @@ export default function TransactionModal({
               <select
                 value={method}
                 onChange={(e) => setMethod(e.target.value)}
-                className="w-full p-2 border rounded-lg text-sm font-bold bg-white"
+                className="w-full p-2 border rounded-lg text-sm font-bold bg-white focus:ring-2 ring-blue-100 outline-none"
               >
                 <option value="cash">Cash</option>
                 <option value="gcash">GCash</option>
                 <option value="card">Card</option>
+                <option value="bank_transfer">Bank Transfer</option>
               </select>
             </div>
           </div>
@@ -275,7 +371,7 @@ export default function TransactionModal({
               rows={2}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="w-full p-2 border rounded-lg text-sm"
+              className="w-full p-2 border rounded-lg text-sm focus:ring-2 ring-blue-100 outline-none"
               placeholder="e.g. Balance payment upon arrival"
             />
           </div>
@@ -283,7 +379,11 @@ export default function TransactionModal({
           <Button
             onClick={handleSubmit}
             disabled={loading || !selectedBooking || !amount}
-            className="w-full bg-[#0A1A44] hover:bg-blue-900 py-6 text-base"
+            className={`w-full py-6 text-base shadow-lg transition-all active:scale-95 ${
+              type === "refund"
+                ? "bg-red-600 hover:bg-red-700"
+                : "bg-[#0A1A44] hover:bg-blue-900"
+            }`}
           >
             {loading ? (
               <Loader2 className="animate-spin" />

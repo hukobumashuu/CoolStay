@@ -1,17 +1,26 @@
 "use client";
 
 import React, { useState, forwardRef } from "react";
-import { Check, Eye, EyeOff, AlertCircle } from "lucide-react"; // Make sure to install lucide-react if needed
+import { Check, Eye, EyeOff, AlertCircle, LucideIcon } from "lucide-react";
 
 interface AuthInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label: string;
   error?: string;
-  isSuccess?: boolean; // New prop for valid state
+  isSuccess?: boolean;
+  icon?: LucideIcon; // Added Icon Prop
 }
 
 export const AuthInput = forwardRef<HTMLInputElement, AuthInputProps>(
   (
-    { label, className = "", type = "text", error, isSuccess, ...props },
+    {
+      label,
+      className = "",
+      type = "text",
+      error,
+      isSuccess,
+      icon: Icon,
+      ...props
+    },
     ref
   ) => {
     const [showPassword, setShowPassword] = useState(false);
@@ -31,16 +40,26 @@ export const AuthInput = forwardRef<HTMLInputElement, AuthInputProps>(
         </label>
 
         <div className="relative group">
+          {/* Left Icon */}
+          {Icon && (
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-100/70 z-10">
+              <Icon className="w-5 h-5" />
+            </div>
+          )}
+
           <input
             ref={ref}
             type={inputType}
-            className={`w-full px-4 py-3 rounded-lg bg-white/20 text-white placeholder-blue-100/50 
+            // Added pl-12 if icon exists, else pl-4
+            className={`w-full ${
+              Icon ? "pl-12" : "px-4"
+            } pr-12 py-3 rounded-lg bg-white/20 text-white placeholder-blue-100/50 
               focus:outline-none focus:ring-2 focus:ring-white/50 focus:bg-white/30 
               transition-all backdrop-blur-sm ${borderColor} ${className}`}
             {...props}
           />
 
-          {/* Icons Container */}
+          {/* Right Icons Container */}
           <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
             {/* Success Icon */}
             {isSuccess && !error && (

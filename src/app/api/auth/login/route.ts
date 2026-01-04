@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { logAdminAction } from "@/lib/admin-logger"; // Import the helper
 
 export async function POST(request: Request) {
   try {
@@ -23,18 +24,24 @@ export async function POST(request: Request) {
 
     const { data: profile } = await supabase
       .from("users")
-      .select("role")
+      .select("role, full_name")
       .eq("id", user.id)
       .single();
+
+    // ✅ LOG THE LOGIN ACTION
+    await logAdminAction(
+      supabase,
+      user.id,
+      "User Login",
+      `Role: ${profile?.role}`
+    );
 
     const redirectUrl =
       profile?.role === "admin" ? "/admin/dashboard" : "/dashboard";
 
     return NextResponse.json({ redirectUrl });
   } catch (error) {
-    // FIX: We now use the variable by logging it
     console.error("Login API Error:", error);
-
     return NextResponse.json(
       { error: "An unexpected error occurred" },
       { status: 500 }

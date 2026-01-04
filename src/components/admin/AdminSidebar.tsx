@@ -13,31 +13,60 @@ import {
   BarChart3,
   Megaphone,
   ShieldCheck,
-  ClipboardList, // Import the new icon
+  ClipboardList,
+  Package,
+  History,
 } from "lucide-react";
 
-const menuItems = [
-  { name: "Manage Bookings", href: "/admin/dashboard", icon: CalendarCheck },
-  { name: "Event Inquiries", href: "/admin/inquiries", icon: ClipboardList },
-  { name: "Room Availability", href: "/admin/rooms", icon: BedDouble },
-  { name: "Customer Management", href: "/admin/customers", icon: UserCog },
-  { name: "Staff Management", href: "/admin/staff", icon: IdCard },
-  { name: "Billing & Invoices", href: "/admin/billing", icon: FileText },
+// Grouped Menu Structure
+const menuGroups = [
   {
-    name: "Guest Engagement & Feedback",
-    href: "/admin/feedback",
-    icon: MessageSquare,
+    title: "Operations",
+    items: [
+      {
+        name: "Manage Bookings",
+        href: "/admin/dashboard",
+        icon: CalendarCheck,
+      },
+      { name: "Room Availability", href: "/admin/rooms", icon: BedDouble },
+      { name: "Inventory Management", href: "/admin/inventory", icon: Package },
+      {
+        name: "Event Inquiries",
+        href: "/admin/inquiries",
+        icon: ClipboardList,
+      },
+    ],
   },
-  { name: "Reports & Analytics", href: "/admin/reports", icon: BarChart3 },
   {
-    name: "Discounts & Promotions",
-    href: "/admin/promotions",
-    icon: Megaphone,
+    title: "People & Engagement",
+    items: [
+      { name: "Customer Management", href: "/admin/customers", icon: UserCog },
+      { name: "Staff Management", href: "/admin/staff", icon: IdCard },
+      {
+        name: "Guest Engagement",
+        href: "/admin/feedback",
+        icon: MessageSquare,
+      },
+    ],
   },
   {
-    name: "Security & Verification",
-    href: "/admin/security",
-    icon: ShieldCheck,
+    title: "Finance & Reports",
+    items: [
+      { name: "Billing & Invoices", href: "/admin/billing", icon: FileText },
+      { name: "Reports & Analytics", href: "/admin/reports", icon: BarChart3 },
+    ],
+  },
+  {
+    title: "System",
+    items: [
+      {
+        name: "Discounts & Promos",
+        href: "/admin/promotions",
+        icon: Megaphone,
+      },
+      { name: "Activity Logs", href: "/admin/activity-logs", icon: History },
+      { name: "Security", href: "/admin/security", icon: ShieldCheck },
+    ],
   },
 ];
 
@@ -46,7 +75,7 @@ export default function AdminSidebar() {
 
   return (
     <aside className="fixed top-0 left-0 h-full w-64 bg-[#9ecbf7] z-40 hidden lg:flex flex-col font-sans">
-      {/* Brand Header */}
+      {/* Brand Header (Preserved Original Style) */}
       <div className="h-16 flex items-center justify-center gap-3 bg-[#0A1A44] shadow-md z-50 shrink-0">
         <div className="relative h-8 w-8 rounded-full overflow-hidden border-2 border-white/20">
           <Image
@@ -61,36 +90,49 @@ export default function AdminSidebar() {
         </h1>
       </div>
 
-      {/* Navigation Menu */}
-      <nav className="flex-1 overflow-y-auto py-6 px-4 space-y-2 custom-scrollbar border-r border-blue-300/50">
-        <div className="px-2 mb-4">
-          <h2 className="text-xl font-serif font-bold text-slate-900">
-            Dashboard
-          </h2>
-        </div>
+      {/* Navigation Menu (Updated with Groups) */}
+      <nav className="flex-1 overflow-y-auto py-6 px-4 space-y-6 custom-scrollbar border-r border-blue-300/50">
+        {menuGroups.map((group, index) => (
+          <div key={index}>
+            {/* Group Header */}
+            <h3 className="px-2 text-[11px] font-extrabold text-[#0A1A44]/70 uppercase tracking-widest mb-2">
+              {group.title}
+            </h3>
 
-        {menuItems.map((item) => {
-          const isActive = pathname === item.href;
-          return (
-            <Link
-              key={item.name}
-              href={item.href}
-              className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 ${
-                isActive
-                  ? "bg-[#3b82f6]/40 border-2 border-[#2563eb] text-black shadow-sm"
-                  : "text-slate-900 hover:bg-blue-300/50 border-2 border-transparent"
-              }`}
-            >
-              <item.icon
-                className={`w-5 h-5 ${
-                  isActive ? "text-black" : "text-slate-800"
-                }`}
-              />
-              <span className="leading-none">{item.name}</span>
-            </Link>
-          );
-        })}
+            {/* Group Items */}
+            <div className="space-y-1.5">
+              {group.items.map((item) => {
+                const isActive = pathname === item.href;
+                return (
+                  <Link
+                    key={item.name}
+                    href={item.href}
+                    className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                      isActive
+                        ? "bg-[#3b82f6]/40 border-2 border-[#2563eb] text-black shadow-sm"
+                        : "text-slate-900 hover:bg-blue-300/50 border-2 border-transparent"
+                    }`}
+                  >
+                    <item.icon
+                      className={`w-4 h-4 ${
+                        isActive ? "text-black" : "text-slate-800"
+                      }`}
+                    />
+                    <span className="leading-none">{item.name}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
+
+      {/* Footer Info (Optional) */}
+      <div className="p-4 border-t border-blue-300/50 text-center">
+        <p className="text-[10px] text-[#0A1A44]/60 font-medium">
+          Admin Portal v1.0
+        </p>
+      </div>
     </aside>
   );
 }

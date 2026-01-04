@@ -1,9 +1,19 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, CheckCircle, XCircle, Loader2, Edit2 } from "lucide-react";
+import {
+  X,
+  CheckCircle,
+  XCircle,
+  Loader2,
+  Edit2,
+  FileText,
+} from "lucide-react"; // Removed 'Download'
 import { toast } from "sonner";
 import Image from "next/image";
+import { PDFDownloadLink } from "@react-pdf/renderer";
+import BookingReceipt from "@/components/pdf/BookingReceipt";
+import { createClient } from "@/lib/supabase/client";
 
 interface PaymentProofModalProps {
   isOpen: boolean;
@@ -13,9 +23,33 @@ interface PaymentProofModalProps {
     guest: string;
     amount: number;
     proof_url: string;
+    total_booking_amount: number;
+    booking_id: string;
   } | null;
   onSuccess?: () => void;
   readOnly?: boolean;
+}
+
+// NEW: Define proper interface for receipt data
+interface BookingReceiptData {
+  id: string;
+  total_amount: number;
+  check_in_date: string;
+  check_out_date: string;
+  guests_count: number;
+  room_types: { name: string } | null;
+  users: {
+    full_name: string | null;
+    email: string | null;
+    phone: string | null;
+  } | null;
+  payments: Array<{
+    amount: number;
+    status: string;
+    payment_method: string;
+    description?: string | null;
+    created_at: string;
+  }>;
 }
 
 export default function PaymentProofModal({
@@ -26,22 +60,50 @@ export default function PaymentProofModal({
   readOnly = false,
 }: PaymentProofModalProps) {
   const [loading, setLoading] = useState(false);
-  // CHANGED: Allow string (for empty input) or number
   const [verifiedAmount, setVerifiedAmount] = useState<number | string>("");
 
-  // Sync state when payment opens
+  // Fixed: Typed state instead of 'any'
+  const [fullBookingData, setFullBookingData] =
+    useState<BookingReceiptData | null>(null);
+
+  // Removed unused 'isReceiptLoading' state
+
   useEffect(() => {
     if (payment) {
       setVerifiedAmount(payment.amount);
+      fetchBookingDetails(payment.booking_id);
     }
   }, [payment]);
 
+  const fetchBookingDetails = async (bookingId: string) => {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("bookings")
+      .select(
+        `
+            *,
+            room_types(name),
+            users(full_name, email, phone),
+            payments(*)
+        `
+      )
+      .eq("id", bookingId)
+      .single();
+
+    // Fixed type casting safely
+    if (data && !error) {
+      setFullBookingData(data as unknown as BookingReceiptData);
+    }
+  };
+
   if (!isOpen || !payment) return null;
+
+  const isFullPayment = payment.amount >= payment.total_booking_amount;
+  const paymentTypeLabel = isFullPayment ? "Full Payment" : "Downpayment";
 
   const handleUpdate = async (status: "completed" | "failed") => {
     if (readOnly) return;
 
-    // Validate Input
     if (
       status === "completed" &&
       (verifiedAmount === "" || Number(verifiedAmount) < 0)
@@ -62,7 +124,7 @@ export default function PaymentProofModal({
         body: JSON.stringify({
           payment_id: payment.id,
           status,
-          verified_amount: Number(verifiedAmount), // Ensure it's sent as number
+          verified_amount: Number(verifiedAmount),
         }),
       });
 
@@ -74,7 +136,8 @@ export default function PaymentProofModal({
       );
       if (onSuccess) onSuccess();
       onClose();
-    } catch (error) {
+    } catch {
+      // Fixed: Removed unused 'error' variable
       toast.dismiss(toastId);
       toast.error("An error occurred");
     } finally {
@@ -87,9 +150,20 @@ export default function PaymentProofModal({
       <div className="bg-white w-full max-w-lg rounded-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="bg-slate-900 p-4 text-white flex justify-between items-center">
-          <h2 className="font-bold">
-            {readOnly ? "View Proof of Payment" : "Verify Payment"}
-          </h2>
+          <div>
+            <h2 className="font-bold text-lg">
+              {readOnly ? "Payment Details" : "Verify Payment"}
+            </h2>
+            <span
+              className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                isFullPayment
+                  ? "bg-green-500 text-white"
+                  : "bg-blue-500 text-white"
+              }`}
+            >
+              {paymentTypeLabel}
+            </span>
+          </div>
           <button
             onClick={onClose}
             className="hover:bg-white/20 p-1 rounded-full"
@@ -125,24 +199,20 @@ export default function PaymentProofModal({
                 {payment.guest}
               </p>
 
-              {/* Only show Claimed Amount if in Verify Mode (for comparison) */}
-              {!readOnly && (
-                <p className="text-xs text-slate-400 mt-1">
-                  Claimed:{" "}
-                  <span className="font-mono text-slate-600">
-                    ₱{payment.amount.toLocaleString()}
-                  </span>
-                </p>
-              )}
+              <p className="text-xs text-slate-400 mt-1">
+                Declared:{" "}
+                <span className="font-mono text-slate-600 font-bold">
+                  ₱{payment.amount.toLocaleString()}
+                </span>
+              </p>
             </div>
 
-            {/* ADMIN EDITABLE AMOUNT */}
             <div className="text-right">
               <p className="text-xs text-slate-400 uppercase font-bold mb-1">
-                {readOnly ? "Verified Amount" : "Confirm Amount Received"}
+                {readOnly ? "Verified Amount" : "Confirm Received"}
               </p>
               {readOnly ? (
-                <p className="font-bold text-xl text-blue-600">
+                <p className="font-bold text-xl text-green-600">
                   ₱{payment.amount.toLocaleString()}
                 </p>
               ) : (
@@ -163,6 +233,33 @@ export default function PaymentProofModal({
               )}
             </div>
           </div>
+
+          {/* Download Receipt Button (If verified) */}
+          {readOnly && fullBookingData && (
+            <div className="pt-2">
+              <PDFDownloadLink
+                document={
+                  <BookingReceipt
+                    booking={fullBookingData}
+                    payments={fullBookingData.payments || []}
+                  />
+                }
+                fileName={`Receipt_${payment.booking_id.substring(0, 8)}.pdf`}
+                className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-colors border border-slate-200"
+              >
+                {/* Fixed: Removed @ts-expect-error as it is handled by the component */}
+                {({ loading }) =>
+                  loading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      <FileText className="w-4 h-4" /> Download Official Receipt
+                    </>
+                  )
+                }
+              </PDFDownloadLink>
+            </div>
+          )}
 
           {!readOnly && (
             <div className="grid grid-cols-2 gap-3 pt-2">
@@ -202,14 +299,6 @@ export default function PaymentProofModal({
                 <b>₱{verifiedAmount}</b>.
               </div>
             )}
-
-          {readOnly && (
-            <div className="text-center">
-              <p className="text-xs text-slate-400 italic">
-                Read-only mode. Go to Dashboard to verify.
-              </p>
-            </div>
-          )}
         </div>
       </div>
     </div>

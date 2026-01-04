@@ -18,12 +18,19 @@ import {
   UserX,
   Plus,
   Eye,
-  DollarSign, // Added DollarSign
+  DollarSign,
+  ChevronDown,
+  ChevronUp,
+  FileText,
+  Mail,
+  Phone,
 } from "lucide-react";
 import { toast } from "sonner";
 import AdminBookingModal from "@/components/admin/AdminBookingModal";
 import PaymentProofModal from "@/components/admin/PaymentProofModal";
-import TransactionModal from "@/components/admin/TransactionModal"; // Added TransactionModal
+import TransactionModal from "@/components/admin/TransactionModal";
+import { PDFDownloadLink } from "@react-pdf/renderer";
+import BookingReceipt from "@/components/pdf/BookingReceipt";
 
 // --- TYPES ---
 interface UserProfile {
@@ -40,12 +47,17 @@ interface Payment {
   id: string;
   amount: number;
   status: string;
+  payment_method: string;
+  description?: string | null;
+  created_at: string;
   proof_url: string | null;
 }
 
-// Extended type for the verification modal which needs guest name
+// Extended type for the verification modal
 interface PaymentVerification extends Payment {
   guestName?: string | null;
+  total_booking_amount: number;
+  booking_id: string;
 }
 
 interface Booking {
@@ -57,6 +69,7 @@ interface Booking {
   check_out_date: string;
   total_amount: number;
   payment_status: string;
+  special_requests?: string; // Added field
   users: UserProfile | null;
   room_types: RoomType | null;
   payments?: Payment[];
@@ -66,7 +79,7 @@ interface ActionButtonProps {
   label: string;
   icon: LucideIcon;
   color: string;
-  onClick: () => void;
+  onClick: (e: React.MouseEvent) => void;
   isLoading: boolean;
   variant?: "primary" | "secondary" | "danger";
   disabled?: boolean;
@@ -130,7 +143,8 @@ export default function AdminDashboard() {
 
   const fetchBookings = async () => {
     try {
-      const res = await fetch("/api/admin/bookings");
+      // Add timestamp to prevent caching
+      const res = await fetch(`/api/admin/bookings?t=${Date.now()}`);
       if (!res.ok) throw new Error("Failed");
       const data = await res.json();
       setBookings(data);
@@ -159,7 +173,7 @@ export default function AdminDashboard() {
       });
       if (!res.ok) throw new Error("Failed");
 
-      await fetchBookings(); // Refresh to get new states
+      await fetchBookings();
       toast.dismiss(toastId);
       toast.success("Updated successfully");
     } catch {
@@ -326,14 +340,16 @@ export default function AdminDashboard() {
           proofToVerify
             ? {
                 id: proofToVerify.id,
-                guest: proofToVerify.guestName || "Unknown Guest", // Handle potential null
+                guest: proofToVerify.guestName || "Unknown Guest",
                 amount: proofToVerify.amount,
                 proof_url: proofToVerify.proof_url || "",
+                total_booking_amount: proofToVerify.total_booking_amount,
+                booking_id: proofToVerify.booking_id,
               }
             : null
         }
         onSuccess={() => {
-          fetchBookings(); // Refresh balance after verification
+          fetchBookings();
         }}
       />
 
@@ -347,7 +363,7 @@ export default function AdminDashboard() {
   );
 }
 
-// --- UPDATED CARD COMPONENT ---
+// --- UPDATED CARD COMPONENT WITH EXPANSION ---
 
 interface BookingCardProps {
   booking: Booking;
@@ -364,6 +380,8 @@ function BookingCard({
   onVerifyProof,
   onReceivePayment,
 }: BookingCardProps) {
+  const [expanded, setExpanded] = useState(false); // State for expansion
+
   const isProcessing = processingId === booking.id;
   const checkInDate = new Date(booking.check_in_date);
   const today = new Date();
@@ -372,22 +390,22 @@ function BookingCard({
   const isEarly = today < checkInDate;
   const isOverdue = today > checkInDate && booking.status === "confirmed";
 
-  // --- BALANCE CALCULATOR ---
+  // Financials
   const totalAmount = booking.total_amount || 0;
-  const totalPaid = (booking.payments || [])
-    .filter((p) => p.status === "completed" || p.status === "paid")
-    .reduce((sum, p) => sum + p.amount, 0);
-
+  const completedPayments =
+    booking.payments?.filter(
+      (p) => p.status === "completed" || p.status === "paid"
+    ) || [];
+  const totalPaid = completedPayments.reduce((sum, p) => sum + p.amount, 0);
   const balanceDue = totalAmount - totalPaid;
   const isFullyPaid = balanceDue <= 0;
 
-  // --- FIND PENDING PROOF ---
-  // Is there a payment that is PENDING and HAS A PICTURE?
+  // Pending Proof Logic
   const pendingProof = (booking.payments || []).find(
     (p) => p.status === "pending" && p.proof_url
   );
 
-  // Status Styling
+  // Status Styles
   const statusConfig: Record<
     string,
     { label: string; color: string; border: string }
@@ -433,17 +451,23 @@ function BookingCard({
           : "border-slate-100 hover:shadow-md"
       }`}
     >
+      {/* Overdue Badge */}
       {isOverdue && (
         <div className="bg-red-500 text-white text-[10px] font-bold uppercase tracking-widest px-3 py-1 absolute top-0 right-0 z-10 rounded-bl-xl flex items-center gap-1">
           <AlertTriangle className="w-3 h-3" /> Overdue Check-In
         </div>
       )}
 
+      {/* Color Strip */}
       <div
         className={`absolute left-0 top-0 bottom-0 w-1.5 ${status.border} transition-all group-hover:w-2`}
       ></div>
 
-      <div className="flex flex-col xl:flex-row p-6 pl-8 gap-6 xl:gap-8 items-start xl:items-center">
+      {/* Main Row (Click to toggle) */}
+      <div
+        onClick={() => setExpanded(!expanded)}
+        className="flex flex-col xl:flex-row p-6 pl-8 gap-6 xl:gap-8 items-start xl:items-center cursor-pointer"
+      >
         {/* Profile */}
         <div className="flex items-center gap-5 min-w-[280px]">
           <div className="relative">
@@ -466,7 +490,7 @@ function BookingCard({
           </div>
         </div>
 
-        {/* Date Timeline */}
+        {/* Timeline */}
         <div className="flex-1 w-full xl:w-auto bg-slate-50/50 rounded-xl p-4 border border-slate-100 flex items-center justify-between gap-4">
           <div className="flex flex-col">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
@@ -498,7 +522,7 @@ function BookingCard({
           </div>
         </div>
 
-        {/* FINANCIALS (UPDATED) */}
+        {/* Financials */}
         <div className="flex flex-col min-w-[140px]">
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
             Payment Status
@@ -508,34 +532,35 @@ function BookingCard({
               ₱{totalAmount.toLocaleString()}
             </span>
           </div>
-          {/* BALANCE INDICATOR */}
           {!isFullyPaid ? (
-            <div className="mt-1">
-              <p className="text-xs font-bold text-red-500 flex items-center gap-1 mb-1">
-                Balance: ₱{balanceDue.toLocaleString()}
+            <div className="mt-1 flex items-center gap-2 flex-wrap">
+              <p className="text-xs font-bold text-red-500">
+                Bal: ₱{balanceDue.toLocaleString()}
               </p>
-
               <button
-                onClick={() =>
+                onClick={(e) => {
+                  e.stopPropagation();
                   onReceivePayment(
                     booking.id,
                     booking.users?.full_name || "Guest",
                     balanceDue
-                  )
-                }
-                className="bg-green-100 text-green-700 hover:bg-green-200 px-2 py-1 rounded-md text-[10px] font-bold flex items-center gap-1 transition-colors w-fit shadow-sm border border-green-200"
+                  );
+                }}
+                className="bg-green-100 text-green-700 hover:bg-green-200 px-2 py-1 rounded-md text-[10px] font-bold flex items-center gap-1 transition-colors shadow-sm border border-green-200"
               >
-                <DollarSign className="w-3 h-3" /> Receive Cash
+                <DollarSign className="w-3 h-3" /> Pay
               </button>
             </div>
           ) : (
-            <p className="text-xs font-bold text-green-600 mt-1 flex items-center gap-1">
-              <CheckCircle className="w-3 h-3" /> Fully Paid
-            </p>
+            <div className="flex flex-col gap-1">
+              <p className="text-xs font-bold text-green-600 mt-1 flex items-center gap-1">
+                <CheckCircle className="w-3 h-3" /> Fully Paid
+              </p>
+            </div>
           )}
         </div>
 
-        {/* ACTIONS */}
+        {/* Actions & Status */}
         <div className="flex flex-col sm:flex-row xl:flex-col items-end gap-3 w-full xl:w-auto min-w-[140px]">
           <div
             className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${status.color}`}
@@ -544,29 +569,33 @@ function BookingCard({
           </div>
 
           <div className="flex gap-2 w-full sm:w-auto justify-end">
-            {/* PRIORITY 1: REVIEW PENDING PAYMENT */}
             {pendingProof && (
               <button
-                onClick={() =>
+                onClick={(e) => {
+                  e.stopPropagation();
                   onVerifyProof({
                     ...pendingProof,
                     guestName: booking.users?.full_name,
-                  })
-                }
+                    total_booking_amount: booking.total_amount,
+                    booking_id: booking.id,
+                  });
+                }}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg font-bold text-xs flex items-center gap-2 shadow-lg shadow-blue-200 animate-pulse"
               >
-                <Eye className="w-3.5 h-3.5" /> Review Payment
+                <Eye className="w-3.5 h-3.5" /> Review
               </button>
             )}
 
-            {/* PRIORITY 2: STANDARD ACTIONS */}
             {booking.status === "pending" && !pendingProof && (
               <>
                 <ActionButton
                   icon={XCircle}
                   label="Decline"
                   color="text-red-500 border border-red-100"
-                  onClick={() => onUpdate(booking.id, "cancelled")}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onUpdate(booking.id, "cancelled");
+                  }}
                   isLoading={isProcessing}
                   variant="danger"
                 />
@@ -574,7 +603,10 @@ function BookingCard({
                   icon={CheckCircle}
                   label="Confirm"
                   color="bg-[#0A1A44] text-white"
-                  onClick={() => onUpdate(booking.id, "confirmed")}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onUpdate(booking.id, "confirmed");
+                  }}
                   isLoading={isProcessing}
                   variant="primary"
                 />
@@ -585,13 +617,16 @@ function BookingCard({
               <>
                 <ActionButton
                   icon={LogIn}
-                  label={isEarly ? "Too Early" : "Check In"}
+                  label={isEarly ? "Early" : "Check In"}
                   color={
                     isEarly
                       ? "bg-slate-100 text-slate-400"
                       : "bg-blue-600 text-white"
                   }
-                  onClick={() => onUpdate(booking.id, "checked_in")}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onUpdate(booking.id, "checked_in");
+                  }}
                   isLoading={isProcessing}
                   disabled={isEarly}
                 />
@@ -600,7 +635,10 @@ function BookingCard({
                     icon={UserX}
                     label="No Show"
                     color="text-purple-600 border border-purple-200"
-                    onClick={() => onUpdate(booking.id, "no_show")}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onUpdate(booking.id, "no_show");
+                    }}
                     isLoading={isProcessing}
                     variant="secondary"
                   />
@@ -613,13 +651,142 @@ function BookingCard({
                 icon={LogOut}
                 label="Check Out"
                 color="bg-slate-800 text-white"
-                onClick={() => onUpdate(booking.id, "checked_out")}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onUpdate(booking.id, "checked_out");
+                }}
                 isLoading={isProcessing}
               />
             )}
+
+            {/* Expand Toggle */}
+            <button
+              className="p-2 rounded-full hover:bg-slate-100 transition-colors"
+              onClick={(e) => {
+                e.stopPropagation(); // Prevent double trigger
+                setExpanded(!expanded);
+              }}
+            >
+              {expanded ? (
+                <ChevronUp className="w-4 h-4 text-slate-400" />
+              ) : (
+                <ChevronDown className="w-4 h-4 text-slate-400" />
+              )}
+            </button>
           </div>
         </div>
       </div>
+
+      {/* Expanded Details Section */}
+      {expanded && (
+        <div className="px-8 pb-8 pt-0 border-t border-slate-100 bg-slate-50/50 animate-in slide-in-from-top-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6">
+            {/* Left: Contact Info & Requests */}
+            <div className="space-y-4">
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                Guest Details
+              </h4>
+              <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-3 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <Mail className="w-4 h-4 text-slate-400" />
+                  <span className="text-sm font-medium text-slate-700">
+                    {booking.users?.email || "No email"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Phone className="w-4 h-4 text-slate-400" />
+                  <span className="text-sm font-medium text-slate-700">
+                    {booking.users?.phone || "No phone"}
+                  </span>
+                </div>
+                {booking.special_requests && (
+                  <div className="pt-2 border-t border-slate-100 mt-2">
+                    <p className="text-xs font-bold text-slate-400 mb-1">
+                      Special Requests:
+                    </p>
+                    <p className="text-sm text-slate-600 italic bg-yellow-50 p-2 rounded-lg">
+                      &quot;{booking.special_requests}&quot;
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Right: Payment History */}
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                  Payment History
+                </h4>
+                {/* RECEIPT BUTTON */}
+                {totalPaid > 0 && (
+                  <PDFDownloadLink
+                    document={
+                      <BookingReceipt
+                        booking={booking}
+                        payments={completedPayments}
+                      />
+                    }
+                    fileName={`Receipt_${booking.id.substring(0, 8)}.pdf`}
+                    className="flex items-center gap-2 text-[10px] font-bold bg-[#0A1A44] text-white px-3 py-1.5 rounded-lg hover:bg-blue-900 transition-colors"
+                  >
+                    {({ loading }) =>
+                      loading ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <>
+                          <FileText className="w-3 h-3" /> Download Receipt
+                        </>
+                      )
+                    }
+                  </PDFDownloadLink>
+                )}
+              </div>
+
+              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                {completedPayments.length === 0 ? (
+                  <div className="p-4 text-center text-slate-400 text-sm">
+                    No verified payments yet.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-100">
+                    {completedPayments.map((p, i) => (
+                      <div
+                        key={i}
+                        className="flex justify-between items-center p-3 text-sm"
+                      >
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-green-500" />
+                          <span className="font-medium text-slate-700 capitalize">
+                            {(p.payment_method || "Unknown").replace("_", " ")}
+                          </span>
+                        </div>
+                        <div className="text-slate-500 text-xs">
+                          {p.created_at
+                            ? new Date(p.created_at).toLocaleDateString()
+                            : "-"}
+                        </div>
+                        <div className="font-bold text-[#0A1A44]">
+                          ₱{p.amount.toLocaleString()}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* Summary Footer */}
+                <div className="bg-slate-50 p-3 flex justify-between items-center border-t border-slate-200">
+                  <span className="text-xs font-bold text-slate-500 uppercase">
+                    Total Paid
+                  </span>
+                  <span className="text-sm font-bold text-green-600">
+                    ₱{totalPaid.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
