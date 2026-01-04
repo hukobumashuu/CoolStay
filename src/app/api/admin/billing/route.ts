@@ -5,12 +5,13 @@ import { NextResponse } from "next/server";
 interface Payment {
   id: string;
   booking_id: string | null;
-  user_id: string | null; // Some payments might link directly to user
+  user_id: string | null;
   amount: number;
   payment_method: string;
   status: string;
   created_at: string;
   description: string | null;
+  proof_url: string | null;
 }
 
 interface Booking {
@@ -19,6 +20,8 @@ interface Booking {
   check_in_date: string;
   check_out_date: string;
   room_type_id: string | null;
+  total_amount: number;
+  status: string;
 }
 
 interface User {
@@ -60,14 +63,16 @@ export async function GET() {
     );
 
     // 4. Fetch Related Bookings (Raw)
-    const bookingsMap: Record<string, Booking> = {}; // Fixed: const
-    const userIds = new Set<string>(); // Fixed: const
-    const roomTypeIds = new Set<string>(); // Fixed: const
+    const bookingsMap: Record<string, Booking> = {};
+    const userIds = new Set<string>();
+    const roomTypeIds = new Set<string>();
 
     if (bookingIds.length > 0) {
       const { data: bookings } = await supabase
         .from("bookings")
-        .select("id, guest_id, check_in_date, check_out_date, room_type_id")
+        .select(
+          "id, guest_id, check_in_date, check_out_date, room_type_id, total_amount, status"
+        )
         .in("id", bookingIds);
 
       (bookings as Booking[])?.forEach((b) => {
@@ -78,7 +83,7 @@ export async function GET() {
     }
 
     // 5. Fetch Users (Raw)
-    const usersMap: Record<string, User> = {}; // Fixed: const
+    const usersMap: Record<string, User> = {};
     const userIdArray = Array.from(userIds);
 
     if (userIdArray.length > 0) {
@@ -93,7 +98,7 @@ export async function GET() {
     }
 
     // 6. Fetch Room Types (Raw - for Receipt Name)
-    const roomsMap: Record<string, string> = {}; // Fixed: const
+    const roomsMap: Record<string, string> = {};
     const roomTypeIdArray = Array.from(roomTypeIds);
 
     if (roomTypeIdArray.length > 0) {
@@ -126,6 +131,7 @@ export async function GET() {
         method: p.payment_method,
         type: (p.amount || 0) < 0 ? "Refund" : "Payment",
         status: p.status,
+        proof_url: p.proof_url,
         date: p.created_at
           ? new Date(p.created_at).toLocaleDateString("en-US", {
               month: "short",
@@ -157,7 +163,7 @@ export async function POST(request: Request) {
 
     const finalAmount =
       type === "refund" ? -Math.abs(amount) : Math.abs(amount);
-    const status = method === "cash" ? "paid" : "pending";
+    const status = method === "cash" ? "completed" : "pending";
 
     const { data, error } = await supabase
       .from("payments")
@@ -179,6 +185,130 @@ export async function POST(request: Request) {
   } catch (err: unknown) {
     let message = "Transaction Failed";
     if (err instanceof Error) message = err.message;
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+// PATCH: Verify Payment & Auto-Update Booking Balance
+export async function PATCH(request: Request) {
+  try {
+    const supabase = await createClient();
+    const body = await request.json();
+
+    // Safe extraction
+    const { payment_id, status, verified_amount } = body;
+
+    // 1. Prepare Update Data
+    const updateData: { status: string; amount?: number } = { status };
+    if (
+      status === "completed" &&
+      verified_amount !== undefined &&
+      verified_amount !== null
+    ) {
+      const parsedAmount = Number(verified_amount);
+      if (!isNaN(parsedAmount)) {
+        updateData.amount = parsedAmount;
+      }
+    }
+
+    // 2. Update the Payment
+    const { data: payment, error: paymentError } = await supabase
+      .from("payments")
+      .update(updateData)
+      .eq("id", payment_id)
+      .select("booking_id, amount")
+      .maybeSingle();
+
+    if (paymentError) {
+      console.error("Payment Update Error:", paymentError);
+      throw paymentError;
+    }
+
+    // If payment not found (RLS issue or wrong ID)
+    if (!payment) {
+      return NextResponse.json(
+        { error: "Payment not found or permission denied" },
+        { status: 404 }
+      );
+    }
+
+    // IF REJECTED, stop here.
+    if (status !== "completed") {
+      return NextResponse.json({ success: true, payment });
+    }
+
+    // --- SMART LOGIC: AUTO-BALANCE ---
+
+    // 3. Fetch Booking Total
+    const { data: booking, error: bookingError } = await supabase
+      .from("bookings")
+      .select("id, total_amount, status")
+      .eq("id", payment.booking_id)
+      .maybeSingle();
+
+    if (bookingError || !booking) {
+      console.error("Booking Fetch Error:", bookingError);
+      return NextResponse.json({
+        success: true,
+        payment,
+        warning: "Booking not found",
+      });
+    }
+
+    // 4. Fetch All Payments
+    const { data: allPayments, error: allPaymentsError } = await supabase
+      .from("payments")
+      .select("amount")
+      .eq("booking_id", payment.booking_id)
+      .eq("status", "completed");
+
+    if (allPaymentsError) {
+      console.error("Payments Fetch Error:", allPaymentsError);
+      return NextResponse.json({ success: true, payment });
+    }
+
+    // 5. Calculate Math (Safe Conversion)
+    const totalPaid = (allPayments || []).reduce((sum, p) => {
+      return sum + Number(p.amount);
+    }, 0);
+
+    const totalDue = Number(booking.total_amount);
+
+    // 6. Determine New Statuses
+    let newPaymentStatus = "pending";
+    let newBookingStatus = booking.status;
+
+    if (totalPaid >= totalDue) {
+      newPaymentStatus = "paid";
+      if (newBookingStatus === "pending") {
+        newBookingStatus = "confirmed";
+      }
+    } else if (totalPaid > 0) {
+      newPaymentStatus = "partial";
+      if (newBookingStatus === "pending") {
+        newBookingStatus = "confirmed";
+      }
+    }
+
+    // 7. Update the Booking
+    const { error: updateError } = await supabase
+      .from("bookings")
+      .update({
+        payment_status: newPaymentStatus,
+        status: newBookingStatus,
+      })
+      .eq("id", booking.id);
+
+    if (updateError) {
+      console.error("Booking Status Update Error:", updateError);
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (err: unknown) {
+    // Fixed: Changed 'any' to 'unknown'
+    console.error("API Error:", err);
+    let message = "Internal Server Error";
+    if (err instanceof Error) message = err.message; // Safe type narrowing
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

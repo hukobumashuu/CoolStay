@@ -40,7 +40,7 @@ export default function ReceiptModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in print:p-0 print:bg-white print:fixed print:inset-0 print:z-[99999]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in print:p-0 print:bg-white print:fixed print:inset-0 print:z-99999">
       {/* Container (Hidden when printing, except the receipt part) */}
       <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] print:shadow-none print:max-w-none print:w-full print:h-auto print:rounded-none">
         {/* Header (No Print) */}

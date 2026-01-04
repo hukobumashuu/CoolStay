@@ -8,9 +8,11 @@ import {
   ArrowUpRight,
   ArrowDownLeft,
   Loader2,
-} from "lucide-react";
+  Eye,
+} from "lucide-react"; // Added Eye
 import TransactionModal from "@/components/admin/TransactionModal";
 import ReceiptModal from "@/components/admin/ReceiptModal";
+import PaymentProofModal from "@/components/admin/PaymentProofModal"; // Import New Modal
 
 type Invoice = {
   id: string;
@@ -25,6 +27,7 @@ type Invoice = {
   room_name: string;
   check_in: string;
   check_out: string;
+  proof_url?: string; // Added proof_url
 };
 
 export default function BillingPage() {
@@ -34,6 +37,7 @@ export default function BillingPage() {
   // Modals
   const [isTransModalOpen, setIsTransModalOpen] = useState(false);
   const [selectedReceipt, setSelectedReceipt] = useState<Invoice | null>(null);
+  const [proofToVerify, setProofToVerify] = useState<Invoice | null>(null); // New State
 
   const fetchInvoices = async () => {
     setIsLoading(true);
@@ -79,11 +83,11 @@ export default function BillingPage() {
         {/* Table Header */}
         <div className="hidden md:flex px-8 py-4 bg-slate-50 border-b border-slate-100 text-xs font-bold text-slate-500 uppercase tracking-wider">
           <div className="w-[15%]">Reference</div>
-          <div className="w-[25%]">Guest Name</div>
+          <div className="w-[20%]">Guest Name</div>
           <div className="w-[15%]">Date</div>
           <div className="w-[15%]">Method</div>
           <div className="w-[15%] text-right">Amount</div>
-          <div className="w-[15%] text-right">Status</div>
+          <div className="w-[20%] text-right">Status</div>
         </div>
 
         {/* Table Body */}
@@ -103,7 +107,7 @@ export default function BillingPage() {
                 key={inv.id}
                 className="flex flex-col md:flex-row items-center justify-between px-8 py-5 hover:bg-slate-50 transition-colors group cursor-default"
               >
-                {/* Columns 1-4 */}
+                {/* 1. Reference */}
                 <div className="md:w-[15%] flex items-center gap-3 w-full mb-2 md:mb-0">
                   <div
                     className={`p-2 rounded-full ${
@@ -128,19 +132,22 @@ export default function BillingPage() {
                   </div>
                 </div>
 
-                <div className="md:w-[25%] w-full mb-1 md:mb-0 text-sm font-medium text-slate-700">
+                {/* 2. Guest */}
+                <div className="md:w-[20%] w-full mb-1 md:mb-0 text-sm font-medium text-slate-700">
                   {inv.guest}
                 </div>
 
+                {/* 3. Date */}
                 <div className="md:w-[15%] w-full mb-1 md:mb-0 text-sm text-slate-500">
                   {inv.date}
                 </div>
 
+                {/* 4. Method */}
                 <div className="md:w-[15%] w-full mb-1 md:mb-0 text-sm font-bold uppercase text-slate-400">
                   {inv.method}
                 </div>
 
-                {/* Column 5: Amount & Receipt */}
+                {/* 5. Amount & Receipt */}
                 <div className="md:w-[15%] w-full flex flex-col items-end justify-center mb-2 md:mb-0">
                   <span
                     className={`font-bold text-base ${
@@ -159,8 +166,18 @@ export default function BillingPage() {
                   </button>
                 </div>
 
-                {/* Status Badge */}
-                <div className="md:w-[15%] w-full flex justify-end">
+                {/* 6. Status & Actions */}
+                <div className="md:w-[20%] w-full flex justify-end gap-2 items-center">
+                  {/* Show Verify Button if Pending + Has Proof */}
+                  {inv.status === "pending" && inv.proof_url && (
+                    <button
+                      onClick={() => setProofToVerify(inv)}
+                      className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-md shadow-blue-200 hover:bg-blue-700 transition-all active:scale-95 flex items-center gap-1 animate-pulse"
+                    >
+                      <Eye className="w-3 h-3" /> View
+                    </button>
+                  )}
+
                   <div
                     className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 uppercase tracking-wide
                       ${
@@ -171,7 +188,7 @@ export default function BillingPage() {
                           : "bg-yellow-100 text-yellow-700"
                       }`}
                   >
-                    {inv.status === "paid" ? (
+                    {inv.status === "paid" || inv.status === "completed" ? (
                       <CheckCircle2 className="w-3 h-3" />
                     ) : (
                       <Clock className="w-3 h-3" />
@@ -195,6 +212,23 @@ export default function BillingPage() {
         isOpen={!!selectedReceipt}
         onClose={() => setSelectedReceipt(null)}
         data={selectedReceipt}
+      />
+
+      <PaymentProofModal
+        isOpen={!!proofToVerify}
+        onClose={() => setProofToVerify(null)}
+        payment={
+          proofToVerify
+            ? {
+                id: proofToVerify.id,
+                guest: proofToVerify.guest,
+                amount: proofToVerify.amount,
+                proof_url: proofToVerify.proof_url || "",
+              }
+            : null
+        }
+        readOnly={true}
+        onSuccess={fetchInvoices}
       />
     </div>
   );

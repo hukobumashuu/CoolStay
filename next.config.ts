@@ -10,6 +10,12 @@ const nextConfig: NextConfig = {
         port: "",
         pathname: "/**", // Allows all paths from Unsplash
       },
+      {
+        protocol: "https",
+        hostname: "flpudkhcaesncvfsioqx.supabase.co",
+        port: "",
+        pathname: "/storage/v1/object/public/**",
+      },
     ],
   },
 };

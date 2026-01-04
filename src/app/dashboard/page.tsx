@@ -10,13 +10,32 @@ import { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import ReviewModal from "@/components/ReviewModal";
+import UserPaymentModal from "@/components/UserPaymentModal";
 import { toast } from "sonner";
-import { Star, CheckCircle2 } from "lucide-react"; // Added icons
+import {
+  Star,
+  CheckCircle2,
+  CreditCard,
+  Download,
+  Loader2,
+} from "lucide-react";
+import { PDFDownloadLink } from "@react-pdf/renderer";
+import BookingReceipt from "@/components/pdf/BookingReceipt";
 
 interface RoomType {
   id: string;
   name: string;
   image_url: string;
+}
+
+// Payment Interface for Receipt
+interface Payment {
+  id: string;
+  amount: number;
+  status: string;
+  payment_method: string;
+  description?: string | null;
+  created_at: string;
 }
 
 interface Booking {
@@ -25,8 +44,10 @@ interface Booking {
   check_out_date: string;
   total_amount: number;
   status: string;
+  payment_status?: string;
   guests_count: number;
   room_types: RoomType | null;
+  payments?: Payment[];
 }
 
 const WelcomeContent = ({ userName }: { userName: string }) => {
@@ -59,31 +80,55 @@ const BookingCard = ({
   booking,
   onCancel,
   onReview,
+  onPay,
   hasReviewed,
+  user,
 }: {
   booking: Booking;
   onCancel: (id: string) => void;
   onReview: (booking: Booking) => void;
+  onPay: (booking: Booking) => void;
   hasReviewed: boolean;
+  user: User | null;
 }) => {
   const room = booking.room_types;
+
+  // Format dates for display
   const checkIn = new Date(booking.check_in_date).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
-    year: "numeric",
   });
   const checkOut = new Date(booking.check_out_date).toLocaleDateString(
     "en-US",
-    { month: "short", day: "numeric", year: "numeric" }
+    {
+      month: "short",
+      day: "numeric",
+    }
   );
 
   const canCancel =
     booking.status === "pending" || booking.status === "confirmed";
-
-  // Logic: Can review if completed AND NOT yet reviewed
   const canReview =
     (booking.status === "checked_out" || booking.status === "completed") &&
     !hasReviewed;
+  const showPayNow =
+    booking.status === "pending" && booking.payment_status === "pending";
+
+  // Calculate Total Paid for Receipt Logic
+  const validPayments =
+    booking.payments?.filter((p) => p.status === "completed") || [];
+  const totalPaid = validPayments.reduce((sum, p) => sum + p.amount, 0);
+  const showDownload = totalPaid > 0;
+
+  // Receipt Data Prep
+  const receiptData = {
+    ...booking,
+    users: {
+      full_name: user?.user_metadata?.full_name || "Guest",
+      email: user?.email || "",
+      phone: user?.phone || "",
+    },
+  };
 
   return (
     <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-4 flex flex-col md:flex-row gap-4 shadow-xl border border-white/50 transition-transform hover:scale-[1.02]">
@@ -104,17 +149,13 @@ const BookingCard = ({
           Booking ID: {booking.id.slice(0, 8)}...
         </p>
 
-        <div className="flex flex-wrap gap-3 text-sm text-gray-700 mt-1">
-          {/* Added Guest Count Badge */}
-          <div className="bg-blue-100 text-blue-800 px-3 py-1 rounded-md font-bold text-xs flex items-center">
-            👥 {booking.guests_count || 1} Pax
-          </div>
-          <div className="bg-blue-50 px-3 py-1 rounded-md">
-            <span className="font-bold text-blue-900">IN:</span> {checkIn}
-          </div>
-          <div className="bg-blue-50 px-3 py-1 rounded-md">
-            <span className="font-bold text-blue-900">OUT:</span> {checkOut}
-          </div>
+        {/* 1-Line Info: Guests | Check-in - Check-out */}
+        <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-900 px-3 py-1.5 rounded-lg text-xs font-bold w-fit mt-1">
+          <span>👥 {booking.guests_count} Pax</span>
+          <span className="text-blue-300">|</span>
+          <span>
+            {checkIn} — {checkOut}
+          </span>
         </div>
       </div>
 
@@ -138,10 +179,48 @@ const BookingCard = ({
             ₱{booking.total_amount?.toLocaleString()}
           </p>
 
+          <div className="flex gap-2 items-center flex-wrap justify-end">
+            {/* PAY NOW BUTTON */}
+            {showPayNow && (
+              <Button
+                size="sm"
+                onClick={() => onPay(booking)}
+                className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8 flex items-center gap-1 shadow-md transition-all active:scale-95"
+              >
+                <CreditCard className="w-3 h-3" /> Pay Now
+              </Button>
+            )}
+
+            {/* RECEIPT DOWNLOAD BUTTON */}
+            {showDownload && (
+              <PDFDownloadLink
+                document={
+                  <BookingReceipt
+                    booking={receiptData}
+                    payments={validPayments}
+                  />
+                }
+                fileName={`Receipt_${booking.id.substring(0, 8)}.pdf`}
+                className="bg-slate-800 hover:bg-slate-900 text-white text-xs h-8 px-3 rounded-md flex items-center gap-1 shadow-md transition-all active:scale-95 font-medium"
+              >
+                {/* Fixed: Removed @ts-expect-error since typings seem correct now */}
+                {({ loading }) =>
+                  loading ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <>
+                      <Download className="w-3 h-3" /> Receipt
+                    </>
+                  )
+                }
+              </PDFDownloadLink>
+            )}
+          </div>
+
           {canCancel && (
             <button
               onClick={() => onCancel(booking.id)}
-              className="text-xs text-red-500 hover:text-red-700 underline font-semibold"
+              className="text-xs text-red-500 hover:text-red-700 underline font-semibold mt-1"
             >
               Cancel Booking
             </button>
@@ -157,7 +236,7 @@ const BookingCard = ({
             </Button>
           )}
 
-          {/* IMPROVED REVIEWED UI */}
+          {/* REVIEW SUBMITTED BADGE */}
           {hasReviewed &&
             (booking.status === "checked_out" ||
               booking.status === "completed") && (
@@ -182,7 +261,10 @@ export default function DashboardPage() {
   );
   const [loading, setLoading] = useState(true);
 
+  // Modal States
   const [reviewBooking, setReviewBooking] = useState<Booking | null>(null);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [paymentBooking, setPaymentBooking] = useState<Booking | null>(null);
 
   useEffect(() => {
     const getUser = async () => {
@@ -200,10 +282,21 @@ export default function DashboardPage() {
     try {
       const supabase = createClient();
 
-      const res = await fetch("/api/bookings");
-      if (res.ok) {
-        const data = await res.json();
-        setBookings(data.bookings);
+      // Fixed: Removed unused 'error' variable
+      const { data } = await supabase
+        .from("bookings")
+        .select(
+          `
+            *,
+            room_types (id, name, image_url),
+            payments (*)
+        `
+        )
+        .eq("guest_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (data) {
+        setBookings(data as Booking[]);
       }
 
       const { data: reviews } = await supabase
@@ -253,10 +346,16 @@ export default function DashboardPage() {
     }
   };
 
+  const handlePayClick = (booking: Booking) => {
+    setPaymentBooking(booking);
+    setIsPaymentModalOpen(true);
+  };
+
   return (
     <main className="min-h-screen flex flex-col font-sans">
       <Navbar activePage="home" logoVariant="text" />
 
+      {/* Review Modal */}
       {reviewBooking && user && reviewBooking.room_types && (
         <ReviewModal
           bookingId={reviewBooking.id}
@@ -266,7 +365,21 @@ export default function DashboardPage() {
           onClose={() => setReviewBooking(null)}
           onSuccess={() => {
             fetchBookings();
-            // REMOVED: Redundant toast here. ReviewModal handles it.
+          }}
+        />
+      )}
+
+      {/* Payment Modal */}
+      {paymentBooking && (
+        <UserPaymentModal
+          isOpen={isPaymentModalOpen}
+          onClose={() => setIsPaymentModalOpen(false)}
+          booking={{
+            id: paymentBooking.id,
+            total_amount: paymentBooking.total_amount,
+          }}
+          onSuccess={() => {
+            fetchBookings();
           }}
         />
       )}
@@ -301,7 +414,9 @@ export default function DashboardPage() {
                         booking={booking}
                         onCancel={handleCancel}
                         onReview={(b) => setReviewBooking(b)}
+                        onPay={(b) => handlePayClick(b)}
                         hasReviewed={reviewedBookingIds.has(booking.id)}
+                        user={user}
                       />
                     ))}
                   </div>

@@ -36,8 +36,22 @@ export default function AdminBookingModal({
     checkIn: "",
     checkOut: "",
     guests: 2,
-    paymentStatus: "pending", // pending vs paid
+    // New Payment Fields
+    initialPayment: 0,
+    paymentMethod: "cash",
   });
+
+  // Calculate Total (Helper)
+  const selectedRoom = rooms.find((r) => r.id === formData.roomId);
+  const calculateTotal = () => {
+    if (!formData.checkIn || !formData.checkOut || !selectedRoom) return 0;
+    const start = new Date(formData.checkIn);
+    const end = new Date(formData.checkOut);
+    const diff = end.getTime() - start.getTime();
+    const nights = Math.ceil(diff / (1000 * 3600 * 24)) || 1;
+    return selectedRoom.base_price * nights;
+  };
+  const totalAmount = calculateTotal();
 
   // Fetch Rooms on Open
   useEffect(() => {
@@ -53,7 +67,8 @@ export default function AdminBookingModal({
       setFormData((prev) => ({
         ...prev,
         checkIn: new Date().toISOString().split("T")[0],
-      })); // Default today
+        initialPayment: 0, // Reset
+      }));
     }
   }, [isOpen]);
 
@@ -71,21 +86,17 @@ export default function AdminBookingModal({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      toast.success("Walk-in booking created successfully!");
+      toast.success("Booking created successfully!");
       onSuccess();
       onClose();
     } catch (error: unknown) {
       let errorMessage = "Failed to create booking";
-      if (error instanceof Error) {
-        errorMessage = error.message;
-      }
+      if (error instanceof Error) errorMessage = error.message;
       toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
   };
-
-  const selectedRoom = rooms.find((r) => r.id === formData.roomId);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in">
@@ -113,7 +124,7 @@ export default function AdminBookingModal({
 
         {/* Body */}
         <div className="p-6 overflow-y-auto space-y-6">
-          {/* Section 1: Guest Details */}
+          {/* Section 1: Guest Details (Keep Same) */}
           <div className="space-y-4">
             <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest border-b pb-2">
               Guest Information
@@ -127,7 +138,6 @@ export default function AdminBookingModal({
                   type="text"
                   className="w-full p-2 border rounded-lg bg-gray-50 focus:ring-2 ring-blue-900 outline-none"
                   value={formData.firstName}
-                  // FIX: Strict Name Validation (No Numbers)
                   onChange={(e) =>
                     setFormData({
                       ...formData,
@@ -147,7 +157,6 @@ export default function AdminBookingModal({
                   type="text"
                   className="w-full p-2 border rounded-lg bg-gray-50 focus:ring-2 ring-blue-900 outline-none"
                   value={formData.lastName}
-                  // FIX: Strict Name Validation (No Numbers)
                   onChange={(e) =>
                     setFormData({
                       ...formData,
@@ -184,7 +193,6 @@ export default function AdminBookingModal({
                   placeholder="09..."
                   className="w-full p-2 border rounded-lg bg-gray-50 focus:ring-2 ring-blue-900 outline-none"
                   value={formData.phone}
-                  // FIX: Strict Phone Validation (No Letters)
                   onChange={(e) =>
                     setFormData({
                       ...formData,
@@ -196,7 +204,7 @@ export default function AdminBookingModal({
             </div>
           </div>
 
-          {/* Section 2: Room & Dates */}
+          {/* Section 2: Room & Dates (Keep Same) */}
           <div className="space-y-4">
             <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest border-b pb-2 mt-2">
               Reservation Details
@@ -255,7 +263,7 @@ export default function AdminBookingModal({
                 </label>
                 <input
                   type="number"
-                  min="1" // FIX: Ensure positive numbers
+                  min="1"
                   className="w-full p-2 border rounded-lg bg-gray-50 focus:ring-2 ring-blue-900 outline-none"
                   value={formData.guests}
                   onChange={(e) =>
@@ -266,29 +274,76 @@ export default function AdminBookingModal({
             </div>
           </div>
 
-          {/* Section 3: Payment */}
-          <div className="bg-blue-50 p-4 rounded-xl flex items-center justify-between border border-blue-100">
-            <div className="flex items-center gap-3">
+          {/* Section 3: Payment (UPDATED) */}
+          <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 space-y-4">
+            <div className="flex items-center gap-3 border-b border-blue-100 pb-2">
               <CreditCard className="w-5 h-5 text-blue-600" />
               <div>
                 <p className="text-sm font-bold text-blue-900">
-                  Payment Status
+                  Payment & Billing
                 </p>
                 <p className="text-xs text-blue-600">
-                  Did the guest pay upfront?
+                  Total Bill:{" "}
+                  <span className="font-bold text-lg ml-1">
+                    ₱{totalAmount.toLocaleString()}
+                  </span>
                 </p>
               </div>
             </div>
-            <select
-              className="p-2 border-blue-200 border rounded-lg text-sm font-bold text-blue-900 outline-none"
-              value={formData.paymentStatus}
-              onChange={(e) =>
-                setFormData({ ...formData, paymentStatus: e.target.value })
-              }
-            >
-              <option value="pending">Pay Later</option>
-              <option value="paid">Paid (Cash/Card)</option>
-            </select>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-blue-900 mb-1 uppercase">
+                  Initial Payment
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-900 font-bold">
+                    ₱
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    max={totalAmount}
+                    className="w-full pl-8 p-2 border border-blue-200 rounded-lg text-sm font-bold text-blue-900 outline-none focus:ring-2 ring-blue-500"
+                    value={formData.initialPayment}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        initialPayment: Number(e.target.value),
+                      })
+                    }
+                  />
+                </div>
+                <p className="text-[10px] text-blue-600 mt-1">
+                  Leave 0 for Pay Later
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-blue-900 mb-1 uppercase">
+                  Method
+                </label>
+                <select
+                  className="w-full p-2 border border-blue-200 rounded-lg text-sm font-bold text-blue-900 outline-none"
+                  value={formData.paymentMethod}
+                  onChange={(e) =>
+                    setFormData({ ...formData, paymentMethod: e.target.value })
+                  }
+                >
+                  <option value="cash">Cash</option>
+                  <option value="gcash">GCash</option>
+                  <option value="card">Card</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Balance Preview */}
+            <div className="flex justify-between items-center pt-2 text-sm">
+              <span className="text-blue-700">Balance Due:</span>
+              <span className="font-bold text-red-600">
+                ₱{(totalAmount - formData.initialPayment).toLocaleString()}
+              </span>
+            </div>
           </div>
         </div>
 

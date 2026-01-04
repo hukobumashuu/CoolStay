@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
-// GET: Fetch all bookings (Admin View)
+// GET: Fetch all bookings with Payments
 export async function GET() {
   try {
     const supabase = await createClient();
@@ -13,13 +13,20 @@ export async function GET() {
     if (authError || !user)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    // UPDATED QUERY: Fetch payments specifically for balance calculation
     const { data, error } = await supabase
       .from("bookings")
       .select(
         `
         *,
         users (full_name, email, phone),
-        room_types (name)
+        room_types (name),
+        payments (
+          id,
+          amount,
+          status,
+          proof_url
+        )
       `
       )
       .order("created_at", { ascending: false });
@@ -28,6 +35,8 @@ export async function GET() {
 
     return NextResponse.json(data);
   } catch (error: unknown) {
+    // Fixed: Log the error so 'error' is used
+    console.error("Error fetching bookings:", error);
     return NextResponse.json(
       { error: "Failed to fetch bookings" },
       { status: 500 }
@@ -92,7 +101,7 @@ export async function PATCH(request: Request) {
   }
 }
 
-// POST: Admin creates a manual booking (Walk-in)
+// POST: Admin creates a manual booking (Updated)
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
@@ -106,11 +115,12 @@ export async function POST(request: Request) {
       checkIn,
       checkOut,
       guests,
-      paymentStatus, // 'paid' (if cash) or 'pending'
+      // UPDATED FIELDS
+      initialPayment,
+      paymentMethod,
     } = body;
 
-    // 1. AVAILABILITY CHECK
-    // Check if room is actually free for these dates
+    // 1. AVAILABILITY CHECK (Same as before)
     const { count: conflictCount } = await supabase
       .from("bookings")
       .select("*", { count: "exact", head: true })
@@ -132,11 +142,8 @@ export async function POST(request: Request) {
       );
     }
 
-    // 2. FIND OR CREATE USER
-    // We search by email to see if they are a returning guest
+    // 2. FIND OR CREATE USER (Same as before)
     let userId;
-
-    // Search existing user
     const { data: existingUser } = await supabase
       .from("users")
       .select("id")
@@ -146,11 +153,6 @@ export async function POST(request: Request) {
     if (existingUser) {
       userId = existingUser.id;
     } else {
-      // Create new "Ghost" User
-      // We use the Admin Auth API to create a user without sending a confirmation email immediately if possible,
-      // or we just use standard signUp. Note: On server side, strictly we should use service_role for this,
-      // but for now let's use the standard flow or a direct insert if you have triggers.
-      // BETTER APPROACH for this setup: Use signUp with a temp password.
       const tempPassword = "WalkInGuest123!";
       const { data: newUser, error: createError } = await supabase.auth.signUp({
         email,
@@ -163,7 +165,6 @@ export async function POST(request: Request) {
           },
         },
       });
-
       if (createError)
         throw new Error(
           "Could not create guest account: " + createError.message
@@ -173,14 +174,24 @@ export async function POST(request: Request) {
 
     if (!userId) throw new Error("Failed to resolve Guest ID");
 
-    // 3. CALCULATE PRICE
+    // 3. CALCULATE PRICE (Same as before)
     const start = new Date(checkIn);
     const end = new Date(checkOut);
     const nights =
-      Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) || 1; // Default to 1 if day tour
+      Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) || 1;
     const totalAmount = (roomType?.base_price || 0) * nights;
 
-    // 4. CREATE BOOKING
+    // 4. DETERMINE STATUSES based on Initial Payment
+    const payAmount = Number(initialPayment) || 0;
+
+    // Fixed: Use const instead of let
+    const bookingStatus = "confirmed";
+
+    let paymentStatus = "pending";
+    if (payAmount >= totalAmount) paymentStatus = "paid";
+    else if (payAmount > 0) paymentStatus = "partial";
+
+    // 5. CREATE BOOKING
     const { data: booking, error: bookingError } = await supabase
       .from("bookings")
       .insert({
@@ -190,8 +201,8 @@ export async function POST(request: Request) {
         check_out_date: checkOut,
         guests_count: guests,
         total_amount: totalAmount,
-        status: "confirmed", // Walk-ins are usually confirmed immediately
-        payment_status: paymentStatus || "pending",
+        status: bookingStatus,
+        payment_status: paymentStatus,
         created_at: new Date().toISOString(),
       })
       .select()
@@ -199,9 +210,24 @@ export async function POST(request: Request) {
 
     if (bookingError) throw bookingError;
 
+    // 6. IF PAID, RECORD TRANSACTION (NEW STEP)
+    if (payAmount > 0) {
+      const { error: payError } = await supabase.from("payments").insert({
+        id: crypto.randomUUID(),
+        booking_id: booking.id,
+        user_id: userId,
+        amount: payAmount,
+        payment_method: paymentMethod || "cash",
+        status: "completed", // Admin entered it, so it's verified
+        description: "Initial payment upon booking",
+        created_at: new Date().toISOString(),
+      });
+
+      if (payError) console.error("Failed to record initial payment", payError);
+    }
+
     return NextResponse.json(booking);
   } catch (error: unknown) {
-    // Changed 'any' to 'unknown'
     let message = "Internal Error";
     if (error instanceof Error) message = error.message;
     return NextResponse.json({ error: message }, { status: 500 });
