@@ -42,10 +42,13 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
+
+    // ✅ Include user_id in the insert
     const { data, error } = await supabase
       .from("staff")
       .insert([
         {
+          user_id: body.user_id || null, // <--- Added this link
           employee_id: body.employee_id,
           full_name: body.full_name,
           email: body.email,

@@ -76,6 +76,7 @@ const WelcomeContent = ({ userName }: { userName: string }) => {
   );
 };
 
+// ... (Keep BookingCard component exactly as is) ...
 const BookingCard = ({
   booking,
   onCancel,
@@ -93,7 +94,6 @@ const BookingCard = ({
 }) => {
   const room = booking.room_types;
 
-  // Format dates for display
   const checkIn = new Date(booking.check_in_date).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
@@ -112,12 +112,10 @@ const BookingCard = ({
     (booking.status === "checked_out" || booking.status === "completed") &&
     !hasReviewed;
 
-  // --- NEW LOGIC: Check for pending payments ---
   const hasPendingPayment = booking.payments?.some(
     (p) => p.status === "pending"
   );
 
-  // Calculate Total Paid
   const validPayments =
     booking.payments?.filter((p) => p.status === "completed") || [];
   const totalPaid = validPayments.reduce((sum, p) => sum + p.amount, 0);
@@ -125,13 +123,11 @@ const BookingCard = ({
   const isFullyPaid = totalPaid >= booking.total_amount;
   const showDownload = totalPaid > 0;
 
-  // Logic: Show Pay Now if status is valid, not fully paid, AND no pending payment
   const showPayNow =
     (booking.status === "pending" || booking.status === "confirmed") &&
     !isFullyPaid &&
     !hasPendingPayment;
 
-  // Receipt Data Prep
   const receiptData = {
     ...booking,
     users: {
@@ -160,7 +156,6 @@ const BookingCard = ({
           Booking ID: {booking.id.slice(0, 8)}...
         </p>
 
-        {/* 1-Line Info: Guests | Check-in - Check-out */}
         <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-900 px-3 py-1.5 rounded-lg text-xs font-bold w-fit mt-1">
           <span>👥 {booking.guests_count} Pax</span>
           <span className="text-blue-300">|</span>
@@ -191,7 +186,6 @@ const BookingCard = ({
           </p>
 
           <div className="flex gap-2 items-center flex-wrap justify-end">
-            {/* PAY NOW BUTTON */}
             {showPayNow && (
               <Button
                 size="sm"
@@ -202,7 +196,6 @@ const BookingCard = ({
               </Button>
             )}
 
-            {/* PENDING PAYMENT BADGE */}
             {hasPendingPayment && (
               <div className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-50 text-yellow-700 border border-yellow-200 rounded-lg shadow-sm">
                 <Loader2 className="w-3 h-3 animate-spin" />
@@ -212,7 +205,6 @@ const BookingCard = ({
               </div>
             )}
 
-            {/* RECEIPT DOWNLOAD BUTTON */}
             {showDownload && (
               <PDFDownloadLink
                 document={
@@ -256,7 +248,6 @@ const BookingCard = ({
             </Button>
           )}
 
-          {/* REVIEW SUBMITTED BADGE */}
           {hasReviewed &&
             (booking.status === "checked_out" ||
               booking.status === "completed") && (
@@ -302,7 +293,6 @@ export default function DashboardPage() {
     try {
       const supabase = createClient();
 
-      // Fixed: Removed unused 'error' variable
       const { data } = await supabase
         .from("bookings")
         .select(
@@ -410,8 +400,10 @@ export default function DashboardPage() {
         </div>
 
         <div className="relative z-10 w-full max-w-[1440px] mx-auto px-4 sm:px-8 grow flex flex-col justify-center pb-20">
-          <div className="grid lg:grid-cols-2 gap-12 items-start py-12">
-            <div className="space-y-10">
+          {/* ✅ FIX: Changed to flex-col for mobile (vertical stack) and grid for desktop. */}
+          <div className="flex flex-col lg:grid lg:grid-cols-2 gap-12 items-start py-12">
+            {/* Left Column: Welcome & Bookings */}
+            <div className="w-full space-y-10 order-2 lg:order-1">
               <WelcomeContent
                 userName={
                   user?.user_metadata?.full_name?.split(" ")[0] || "User"
@@ -455,7 +447,10 @@ export default function DashboardPage() {
                 )}
               </div>
             </div>
-            <div className="hidden lg:flex justify-end sticky top-24">
+
+            {/* Right Column: Calendar */}
+            {/* ✅ FIX: Added responsive classes to center on mobile and stick on desktop */}
+            <div className="w-full flex justify-center lg:justify-end lg:sticky lg:top-24 order-1 lg:order-2 mb-8 lg:mb-0">
               <AvailabilityCalendar />
             </div>
           </div>

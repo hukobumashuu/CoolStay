@@ -13,18 +13,22 @@ interface DayStatus {
 export function AvailabilityCalendar() {
   const [viewDate, setViewDate] = useState(new Date());
   const [dayStatuses, setDayStatuses] = useState<Record<string, DayStatus>>({});
-  const [, setLoading] = useState(false); // Kept for future loading states
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [loading, setLoading] = useState(false);
 
   const year = viewDate.getFullYear();
   const month = viewDate.getMonth();
 
   const firstDayOfMonth = new Date(year, month, 1).getDay();
-  // Adjust empty slots to start Monday (if desired) or Sunday.
-  // Standard Calendar starts Sunday (0).
   const emptySlots = firstDayOfMonth;
 
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+
+  // ✅ FIX: Calculate trailing slots to force 6 rows (42 cells)
+  const TOTAL_GRID_CELLS = 42;
+  const usedCells = emptySlots + daysInMonth;
+  const trailingSlots = TOTAL_GRID_CELLS - usedCells;
 
   useEffect(() => {
     const fetchMonthData = async () => {
@@ -100,7 +104,9 @@ export function AvailabilityCalendar() {
   ];
 
   return (
-    <div className="w-full max-w-[340px]">
+    <div className="w-full max-w-[340px] mx-auto">
+      {" "}
+      {/* Added mx-auto for mobile centering */}
       <div className="bg-white/95 backdrop-blur-sm p-6 rounded-2xl shadow-2xl border border-white/50">
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
@@ -134,14 +140,15 @@ export function AvailabilityCalendar() {
 
         {/* Dates Grid */}
         <div className="grid grid-cols-7 gap-y-4 gap-x-2">
+          {/* 1. Leading Empty Slots */}
           {Array.from({ length: emptySlots }).map((_, i) => (
             <div key={`empty-${i}`} />
           ))}
 
+          {/* 2. Actual Days */}
           {days.map((day) => {
             const status = dayStatuses[day.toString()];
             const isMyTrip = status?.isUserBooked;
-            // Mark as "Fully Booked" (Red Dot) if someone else booked it
             const isFullyBooked = !isMyTrip && (status?.bookingCount || 0) > 0;
 
             const isToday =
@@ -159,26 +166,30 @@ export function AvailabilityCalendar() {
                   text-sm font-medium transition-all h-8 w-8 flex items-center justify-center rounded-full
                   ${
                     isMyTrip
-                      ? "bg-[#0A1A44] text-white shadow-md scale-110 ring-2 ring-blue-200" // My Trip
+                      ? "bg-[#0A1A44] text-white shadow-md scale-110 ring-2 ring-blue-200"
                       : isToday
-                      ? "bg-blue-100 text-blue-900 font-bold" // Today
-                      : "text-gray-700 hover:bg-blue-50" // Default
+                      ? "bg-blue-100 text-blue-900 font-bold"
+                      : "text-gray-700 hover:bg-blue-50"
                   }
                 `}
                 >
                   {day}
                 </span>
 
-                {/* Red Dot for Fully Booked / Unavailable */}
                 {isFullyBooked && (
                   <span className="absolute -bottom-1 h-1.5 w-1.5 rounded-full bg-red-500 ring-1 ring-white" />
                 )}
               </div>
             );
           })}
+
+          {/* 3. ✅ Trailing Empty Slots (Keeps height uniform) */}
+          {Array.from({ length: Math.max(0, trailingSlots) }).map((_, i) => (
+            <div key={`trail-${i}`} className="h-8" />
+          ))}
         </div>
 
-        {/* UPDATED LEGEND */}
+        {/* Legend */}
         <div className="mt-6 flex flex-wrap justify-center gap-4 text-[10px] text-gray-500 font-medium border-t border-gray-100 pt-4">
           <div className="flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-full bg-[#0A1A44]"></span>
