@@ -291,7 +291,11 @@ export default function Navbar({
                 </div>
               ) : (
                 <Link href="/login" onClick={() => setIsMobileMenuOpen(false)}>
-                  <Button className="w-full bg-white text-[#0A1A44] hover:bg-gray-100 font-bold text-lg h-14 rounded-xl shadow-lg">
+                  {/* ✅ FIXED: Added variant="white" to enforce dark text color on white background */}
+                  <Button
+                    variant="white"
+                    className="w-full font-bold text-lg h-14 rounded-xl shadow-lg text-[#0A1A44]"
+                  >
                     Sign In / Register
                   </Button>
                 </Link>
